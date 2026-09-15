@@ -32,6 +32,12 @@
     --success-border: #1f6b47;
     --success-text: #a7f3d0;
     --success-icon: #34d399;
+
+    /* Gantt variables */
+    --gantt-today-bg: rgba(53, 132, 228, 0.08);
+    --gantt-today-line: #3584e4;
+    --gantt-weekend-bg: rgba(0, 0, 0, 0.15);
+    --gantt-cell-border: rgba(255, 255, 255, 0.05);
 }
 
 /* Mode Clair automatique si le navigateur/système est en thème clair (Adwaita Light) */
@@ -63,6 +69,12 @@
         --success-border: #84e1bc;
         --success-text: #03543f;
         --success-icon: #0e9f6e;
+
+        /* Gantt variables clair */
+        --gantt-today-bg: rgba(28, 113, 216, 0.07);
+        --gantt-today-line: #1c71d8;
+        --gantt-weekend-bg: rgba(0, 0, 0, 0.03);
+        --gantt-cell-border: rgba(0, 0, 0, 0.05);
     }
 }
 
@@ -230,4 +242,100 @@ body {
     background-color: var(--surface);
     border-color: var(--border);
     color: var(--text-main);
+}
+
+/* ==========================================================================
+   Gantt Chart & Timeline Components
+   ========================================================================== */
+.adw-gantt-wrapper {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1.5rem;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 4px 20px var(--shadow-card);
+}
+
+.adw-gantt-sidebar {
+    background-color: var(--surface);
+    border-right: 1px solid var(--border);
+    z-index: 20;
+    position: sticky;
+    left: 0;
+}
+
+.adw-gantt-cell {
+    border-right: 1px solid var(--gantt-cell-border);
+    border-bottom: 1px solid var(--gantt-cell-border);
+}
+
+.adw-gantt-today {
+    background-color: var(--gantt-today-bg) !important;
+}
+
+.adw-gantt-weekend {
+    background-color: var(--gantt-weekend-bg);
+}
+
+.adw-gantt-bar {
+    position: absolute;
+    height: 28px;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+    z-index: 10;
+}
+
+.adw-gantt-bar:hover {
+    transform: translateY(-1px) scale(1.005);
+    filter: brightness(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    z-index: 15;
+}
+
+.adw-gantt-bar-todo {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.adw-gantt-bar-progress {
+    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.adw-gantt-bar-done {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.adw-gantt-bar-urgent {
+    background: linear-gradient(135deg, #f43f5e, #e11d48);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.adw-gantt-deadline-pin {
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: #f43f5e;
+    border: 2px solid var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 8px rgba(244, 63, 94, 0.6);
 }

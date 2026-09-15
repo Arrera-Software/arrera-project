@@ -1,3 +1,4 @@
+import os
 from django.db import models
 from django.conf import settings
 from django.utils.text import slugify
@@ -58,7 +59,7 @@ class Project(models.Model):
 class SubProject(models.Model):
     """
     Modèle Sous-Projet rattaché à un projet principal.
-    Chaque sous-projet dispose de son propre tableau Kanban et coffre-fort de mots de passe.
+    Chaque sous-projet dispose de son propre tableau Kanban, timeline Gantt et coffre-fort de mots de passe.
     """
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='subprojects', verbose_name="Projet parent")
     name = models.CharField("Nom du sous-projet", max_length=200)
@@ -129,6 +130,7 @@ class Task(models.Model):
         choices=Priority.choices,
         default=Priority.MEDIUM
     )
+    start_date = models.DateField("Date de début", null=True, blank=True)
     due_date = models.DateField("Date limite", null=True, blank=True)
     created_at = models.DateTimeField("Créé le", auto_now_add=True)
     updated_at = models.DateTimeField("Modifié le", auto_now=True)
@@ -140,6 +142,10 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+    @property
+    def effective_start_date(self):
+        return self.start_date or self.created_at.date()
 
 
 class ProjectCredential(models.Model):
@@ -160,3 +166,89 @@ class ProjectCredential(models.Model):
 
     def __str__(self):
         return f"{self.subproject.name} - {self.title}"
+
+
+class ProjectResource(models.Model):
+    """
+    Modèle Ressource / Document / Fichier physique ou Lien externe.
+    Permet de téléverser directement des fichiers physiques (PDF, archives ZIP, tableurs, etc.)
+    ou de centraliser des liens externes (Notion, Google Docs, Figma, dépôts Git).
+    Peut être associé au projet principal ou à un sous-projet spécifique.
+    """
+    class EntryType(models.TextChoices):
+        FILE = 'file', 'Fichier téléversé'
+        URL = 'url', 'Lien web / URL externe'
+
+    class ResourceType(models.TextChoices):
+        DOCUMENT = 'document', 'Documentation / PDF'
+        FILE = 'file', 'Fichier / Archive'
+        DESIGN = 'design', 'Design / Maquettes'
+        REPO = 'repo', 'Dépôt / Code source'
+        OTHER = 'other', 'Autre document'
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='resources', verbose_name="Projet")
+    subproject = models.ForeignKey(SubProject, on_delete=models.CASCADE, null=True, blank=True, related_name='resources', verbose_name="Sous-projet (optionnel)")
+    entry_type = models.CharField("Type d'entrée", max_length=10, choices=EntryType.choices, default=EntryType.FILE)
+    title = models.CharField("Nom du document / fichier", max_length=200, blank=True)
+    file = models.FileField("Fichier téléversé", upload_to='project_files/%Y/%m/', null=True, blank=True)
+    url = models.URLField("Lien URL externe", max_length=500, blank=True)
+    resource_type = models.CharField("Catégorie", max_length=20, choices=ResourceType.choices, default=ResourceType.DOCUMENT)
+    file_size = models.PositiveBigIntegerField("Taille en octets", default=0, blank=True)
+    description = models.TextField("Description / Notes", blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Ajouté par")
+    created_at = models.DateTimeField("Ajouté le", auto_now_add=True)
+    updated_at = models.DateTimeField("Mis à jour le", auto_now=True)
+
+    class Meta:
+        verbose_name = "Document & Fichier"
+        verbose_name_plural = "Documents & Fichiers"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.title or self.file_name or "Document"
+
+    def save(self, *args, **kwargs):
+        if self.file and hasattr(self.file, 'size') and self.file.size:
+            self.file_size = self.file.size
+        if not self.title:
+            if self.file:
+                self.title = os.path.basename(self.file.name)
+            elif self.url:
+                self.title = self.url
+            else:
+                self.title = "Document"
+        super().save(*args, **kwargs)
+
+    @property
+    def is_file(self):
+        return bool(self.file)
+
+    @property
+    def target_url(self):
+        if self.file:
+            return self.file.url
+        return self.url
+
+    @property
+    def file_name(self):
+        if self.file:
+            return os.path.basename(self.file.name)
+        return ""
+
+    @property
+    def file_extension(self):
+        if self.file:
+            _, ext = os.path.splitext(self.file.name)
+            return ext.replace('.', '').upper()
+        return ""
+
+    @property
+    def file_size_formatted(self):
+        if not self.file_size:
+            return ""
+        size = self.file_size
+        for unit in ['o', 'Ko', 'Mo', 'Go']:
+            if size < 1024.0:
+                return f"{size:.1f} {unit}".replace('.0 ', ' ')
+            size /= 1024.0
+        return f"{size:.1f} To"

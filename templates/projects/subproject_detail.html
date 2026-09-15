@@ -5,6 +5,27 @@
 {% block content %}
 <div class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 flex flex-col">
     
+    <!-- Bouton retour vers la vue projet & Navigation entre sous-projets -->
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <a href="{% url 'projects:project_detail' slug=project.slug %}" 
+           class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-semibold border border-[var(--border)] adw-card-subtle hover:text-adw-main hover:border-[var(--accent)] hover:-translate-x-0.5 transition-all cursor-pointer shadow-sm">
+            <i class="ph-bold ph-arrow-left text-sm text-adw-accent"></i>
+            <span>Retour au projet ({{ project.name }})</span>
+        </a>
+
+        {% if sibling_subprojects|length > 1 %}
+        <div class="flex items-center gap-1.5 overflow-x-auto">
+            <span class="text-[11px] text-adw-muted mr-1 hidden sm:inline">Sous-projets :</span>
+            {% for sib in sibling_subprojects %}
+            <a href="{% url 'projects:subproject_detail' project_slug=project.slug subproject_slug=sib.slug %}"
+               class="px-3 py-1.5 rounded-xl text-xs font-medium transition-all shrink-0 {% if sib.id == subproject.id %}adw-btn-primary shadow-sm{% else %}adw-card-subtle hover:text-adw-main{% endif %}">
+                {{ sib.name }}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
     <!-- En-tête du sous-projet -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
@@ -20,40 +41,19 @@
             <p class="text-xs text-adw-muted mt-1.5 max-w-2xl leading-relaxed">{{ subproject.description }}</p>
             {% endif %}
         </div>
-
-        <!-- Navigation rapide entre sous-projets frères & retour projet -->
-        <div class="flex items-center gap-3">
-            <a href="{% url 'projects:project_detail' slug=project.slug %}" 
-               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium adw-card-subtle hover:text-adw-main transition-colors"
-               title="Retour à la vue d'ensemble du projet">
-                <i class="ph ph-arrow-left text-xs"></i>
-                <span>{{ project.name }}</span>
-            </a>
-
-            {% if sibling_subprojects|length > 1 %}
-            <div class="flex items-center gap-1.5">
-                {% for sib in sibling_subprojects %}
-                <a href="{% url 'projects:subproject_detail' project_slug=project.slug subproject_slug=sib.slug %}"
-                   class="px-3 py-1 rounded-xl text-xs font-medium transition-all {% if sib.id == subproject.id %}adw-btn-primary shadow-sm{% else %}adw-card-subtle hover:text-adw-main{% endif %}">
-                    {{ sib.name }}
-                </a>
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
     </div>
 
-    <!-- Barre d'onglets Adwaita / Material Design 3 (Segmented Control) -->
+    <!-- Barre d'onglets Adwaita (Segmented Control) -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-4 mb-6">
         
-        <!-- Onglets -->
-        <div class="inline-flex p-1 rounded-2xl adw-card-subtle gap-1">
+        <!-- 5 Onglets -->
+        <div class="inline-flex p-1 rounded-2xl adw-card-subtle gap-1 flex-wrap">
             
-            <!-- Onglet 1 : Général -->
+            <!-- Onglet 1 : Général (Kanban) -->
             <button type="button" 
                     onclick="switchTab('general')" 
                     id="tab-btn-general"
-                    class="tab-button flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer">
+                    class="tab-button flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer">
                 <i class="ph-bold ph-kanban"></i>
                 <span>Général</span>
                 <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[var(--surface)] text-adw-muted">
@@ -65,7 +65,7 @@
             <button type="button" 
                     onclick="switchTab('personal')" 
                     id="tab-btn-personal"
-                    class="tab-button flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer">
+                    class="tab-button flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer">
                 <i class="ph-bold ph-user-check"></i>
                 <span>Personnel</span>
                 <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[var(--surface)] text-adw-muted">
@@ -73,11 +73,35 @@
                 </span>
             </button>
 
-            <!-- Onglet 3 : Mots de passe -->
+            <!-- Onglet 3 : Calendrier Gantt -->
+            <button type="button" 
+                    onclick="switchTab('gantt')" 
+                    id="tab-btn-gantt"
+                    class="tab-button flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer">
+                <i class="ph-bold ph-calendar-dots"></i>
+                <span>Planning Gantt</span>
+                <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[var(--surface)] text-adw-muted">
+                    {{ total_tasks_count }}
+                </span>
+            </button>
+
+            <!-- Onglet 4 : Documents & Fichiers -->
+            <button type="button" 
+                    onclick="switchTab('resources')" 
+                    id="tab-btn-resources"
+                    class="tab-button flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer">
+                <i class="ph-bold ph-files"></i>
+                <span>Docs & Fichiers</span>
+                <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[var(--surface)] text-adw-muted">
+                    {{ resources_count }}
+                </span>
+            </button>
+
+            <!-- Onglet 5 : Mots de passe -->
             <button type="button" 
                     onclick="switchTab('passwords')" 
                     id="tab-btn-passwords"
-                    class="tab-button flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer">
+                    class="tab-button flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer">
                 <i class="ph-bold ph-lock-key"></i>
                 <span>Mots de passe</span>
                 <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[var(--surface)] text-adw-muted">
@@ -94,6 +118,14 @@
                     class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer">
                 <i class="ph-bold ph-plus"></i>
                 <span>Nouvelle Tâche</span>
+            </button>
+
+            <button type="button" 
+                    id="btn-add-resource"
+                    onclick="openModal('resource-modal')" 
+                    class="hidden inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer">
+                <i class="ph-bold ph-plus"></i>
+                <span>Ajouter un Fichier</span>
             </button>
 
             <button type="button" 
@@ -145,6 +177,14 @@
 
                         {% if task.description %}
                         <p class="text-[11px] text-adw-muted mt-2 line-clamp-2 leading-relaxed">{{ task.description }}</p>
+                        {% endif %}
+
+                        <!-- Échéance & Début -->
+                        {% if task.due_date %}
+                        <div class="mt-2.5 flex items-center gap-1.5 text-[10px] text-adw-muted">
+                            <i class="ph-bold ph-calendar text-adw-accent"></i>
+                            <span>Deadline : <strong class="text-adw-main">{{ task.due_date|date:"d/m/Y" }}</strong></span>
+                        </div>
                         {% endif %}
 
                         <div class="mt-3 pt-3 border-t border-[var(--border)] flex items-center justify-between text-[11px]">
@@ -234,6 +274,13 @@
                             <p class="text-[11px] text-adw-muted mt-2 line-clamp-2 leading-relaxed">{{ task.description }}</p>
                             {% endif %}
 
+                            {% if task.due_date %}
+                            <div class="mt-2.5 flex items-center gap-1.5 text-[10px] text-adw-muted">
+                                <i class="ph-bold ph-calendar text-adw-accent"></i>
+                                <span>Deadline : <strong class="text-adw-main">{{ task.due_date|date:"d/m/Y" }}</strong></span>
+                            </div>
+                            {% endif %}
+
                             <div class="mt-3 pt-3 border-t border-[var(--border)] flex items-center justify-between text-[11px]">
                                 <span class="text-[10px] text-adw-accent font-medium flex items-center gap-1">
                                     <i class="ph ph-user-check"></i> Assigné à vous
@@ -264,7 +311,252 @@
     </div>
 
     <!-- ================================================================= -->
-    <!-- CONTENU ONGLET 3 : GESTIONNAIRE DE MOTS DE PASSE & ACCÈS         -->
+    <!-- CONTENU ONGLET 3 : CALENDRIER GANTT / TIMELINE & DEADLINES        -->
+    <!-- ================================================================= -->
+    <div id="tab-content-gantt" class="tab-pane hidden flex-1 flex flex-col">
+        
+        <!-- Barre de contrôle et légende du Gantt -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+            
+            <!-- Navigation de période -->
+            <div class="flex items-center gap-2">
+                <button type="button" 
+                        onclick="navigateGanttMonth(-1)" 
+                        class="p-2 rounded-xl adw-card-subtle hover:text-adw-main transition-colors cursor-pointer border border-[var(--border)]" 
+                        title="Mois précédent">
+                    <i class="ph-bold ph-caret-left text-sm"></i>
+                </button>
+                <button type="button" 
+                        onclick="resetGanttToToday()" 
+                        class="px-3 py-1.5 rounded-xl text-xs font-semibold adw-card-subtle hover:text-adw-main transition-colors cursor-pointer border border-[var(--border)]">
+                    Aujourd'hui
+                </button>
+                <button type="button" 
+                        onclick="navigateGanttMonth(1)" 
+                        class="p-2 rounded-xl adw-card-subtle hover:text-adw-main transition-colors cursor-pointer border border-[var(--border)]" 
+                        title="Mois suivant">
+                    <i class="ph-bold ph-caret-right text-sm"></i>
+                </button>
+
+                <span id="gantt-current-month-label" class="text-sm font-bold text-adw-main ml-2 capitalize">
+                    <!-- Généré dynamiquement -->
+                </span>
+            </div>
+
+            <!-- Légende dynamique -->
+            <div class="flex flex-wrap items-center gap-3 text-[11px] text-adw-muted">
+                <span class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded-full bg-indigo-500"></span>
+                    <span>À faire</span>
+                </span>
+                <span class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded-full bg-sky-500"></span>
+                    <span>En cours</span>
+                </span>
+                <span class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                    <span>Terminé</span>
+                </span>
+                <span class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded-full bg-rose-500"></span>
+                    <span>Urgent / Deadline</span>
+                </span>
+            </div>
+
+        </div>
+
+        <!-- Tableau Gantt Matrix -->
+        <div class="adw-gantt-wrapper flex flex-col flex-1 min-h-[480px]">
+            <div class="overflow-x-auto overflow-y-hidden flex-1 relative" id="gantt-scroll-container">
+                <div id="gantt-matrix-root" class="min-w-full">
+                    <!-- Contenu du tableau Gantt injecté par JavaScript -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- CONTENU ONGLET 4 : DOCUMENTS & FICHIERS LIÉS AU SOUS-PROJET       -->
+    <!-- ================================================================= -->
+    <div id="tab-content-resources" class="tab-pane hidden flex-1 flex flex-col">
+        
+        <!-- Documents spécifiques au sous-projet -->
+        <div class="mb-8">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="text-sm font-bold text-adw-main flex items-center gap-2">
+                        <i class="ph-bold ph-folder text-adw-accent"></i>
+                        <span>Fichiers et documents du sous-projet ({{ subproject.name }})</span>
+                    </h3>
+                </div>
+                <button type="button" 
+                        onclick="openModal('resource-modal')" 
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold adw-btn-primary cursor-pointer">
+                    <i class="ph-bold ph-plus"></i>
+                    <span>Ajouter un fichier</span>
+                </button>
+            </div>
+
+            {% if subproject_resources %}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for res in subproject_resources %}
+                <div class="rounded-2xl p-4 adw-card flex flex-col justify-between hover:border-[var(--accent)] transition-all">
+                    <div>
+                        <div class="flex items-start justify-between gap-3 mb-2">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0
+                                    {% if res.is_file %}
+                                        {% if res.file_extension in 'PDF' %}bg-rose-600
+                                        {% elif res.file_extension in 'ZIP RAR TAR GZ 7Z' %}bg-amber-600
+                                        {% elif res.file_extension in 'PNG JPG JPEG WEBP SVG GIF' %}bg-purple-600
+                                        {% elif res.file_extension in 'DOC DOCX XLS XLSX PPT PPTX CSV' %}bg-blue-600
+                                        {% else %}bg-indigo-600{% endif %}
+                                    {% elif res.resource_type == 'document' %}bg-blue-600
+                                    {% elif res.resource_type == 'file' %}bg-amber-600
+                                    {% elif res.resource_type == 'design' %}bg-purple-600
+                                    {% elif res.resource_type == 'repo' %}bg-emerald-600
+                                    {% else %}bg-slate-600{% endif %}">
+                                    {% if res.is_file %}
+                                        {% if res.file_extension in 'PDF' %}<i class="ph-bold ph-file-pdf text-base"></i>
+                                        {% elif res.file_extension in 'ZIP RAR TAR GZ 7Z' %}<i class="ph-bold ph-file-archive text-base"></i>
+                                        {% elif res.file_extension in 'PNG JPG JPEG WEBP SVG GIF' %}<i class="ph-bold ph-file-image text-base"></i>
+                                        {% elif res.file_extension in 'DOC DOCX' %}<i class="ph-bold ph-file-doc text-base"></i>
+                                        {% elif res.file_extension in 'XLS XLSX CSV' %}<i class="ph-bold ph-file-xls text-base"></i>
+                                        {% else %}<i class="ph-bold ph-file text-base"></i>{% endif %}
+                                    {% elif res.resource_type == 'document' %}<i class="ph-bold ph-file-text text-base"></i>
+                                    {% elif res.resource_type == 'file' %}<i class="ph-bold ph-cloud-arrow-down text-base"></i>
+                                    {% elif res.resource_type == 'design' %}<i class="ph-bold ph-figma-logo text-base"></i>
+                                    {% elif res.resource_type == 'repo' %}<i class="ph-bold ph-git-branch text-base"></i>
+                                    {% else %}<i class="ph-bold ph-link-simple text-base"></i>{% endif %}
+                                </div>
+                                <div class="overflow-hidden">
+                                    <h4 class="text-xs font-bold text-adw-main leading-snug truncate" title="{{ res.title }}">{{ res.title }}</h4>
+                                    <div class="flex items-center gap-1.5 text-[9px] text-adw-muted">
+                                        {% if res.is_file %}
+                                            <span class="font-bold uppercase">{{ res.file_extension|default:"Fichier" }}</span>
+                                            {% if res.file_size_formatted %}<span>• {{ res.file_size_formatted }}</span>{% endif %}
+                                        {% else %}
+                                            <span class="capitalize">{{ res.get_resource_type_display }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <form method="post" action="{% url 'projects:resource_delete' resource_id=res.id %}" class="inline m-0 shrink-0">
+                                {% csrf_token %}
+                                <button type="submit" 
+                                        onclick="return confirm('Supprimer ce fichier ?')" 
+                                        class="p-1 text-adw-dim hover:text-adw-error transition-colors cursor-pointer" 
+                                        title="Supprimer">
+                                    <i class="ph ph-trash text-xs"></i>
+                                </button>
+                            </form>
+                        </div>
+
+                        {% if res.description %}
+                        <p class="text-[11px] text-adw-muted mb-2 line-clamp-2 leading-relaxed">{{ res.description }}</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="pt-2 border-t border-[var(--border)] flex items-center justify-between text-xs">
+                        {% if res.is_file %}
+                        <a href="{{ res.target_url }}" download class="inline-flex items-center gap-1 font-semibold text-adw-accent hover:underline">
+                            <i class="ph-bold ph-download-simple text-xs"></i>
+                            <span>Télécharger</span>
+                        </a>
+                        <a href="{{ res.target_url }}" target="_blank" rel="noopener noreferrer" class="text-adw-muted hover:text-adw-main p-1" title="Aperçu">
+                            <i class="ph ph-arrow-square-out text-xs"></i>
+                        </a>
+                        {% else %}
+                        <a href="{{ res.target_url }}" target="_blank" rel="noopener noreferrer" 
+                           class="inline-flex items-center gap-1 font-semibold text-adw-accent hover:underline truncate max-w-[200px]">
+                            <span>Ouvrir</span>
+                            <i class="ph ph-arrow-square-out text-xs"></i>
+                        </a>
+                        <button type="button" 
+                                onclick="copyToClipboard('{{ res.target_url }}', this)" 
+                                class="text-adw-muted hover:text-adw-main transition-colors p-1 cursor-pointer" 
+                                title="Copier le lien">
+                            <i class="ph ph-copy text-xs"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="rounded-2xl p-6 text-center border border-dashed border-[var(--border)] text-xs text-adw-dim">
+                <span>Aucun fichier spécifique à ce sous-projet</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Documents globaux du projet parent -->
+        {% if parent_resources %}
+        <div class="pt-6 border-t border-[var(--border)]">
+            <h3 class="text-sm font-bold text-adw-main mb-4 flex items-center gap-2">
+                <i class="ph-bold ph-globe text-adw-muted"></i>
+                <span>Documents et fichiers partagés du projet principal ({{ project.name }})</span>
+            </h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for res in parent_resources %}
+                <div class="rounded-2xl p-4 adw-card-subtle border border-[var(--border-subtle)] flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center gap-2.5 mb-2">
+                            <div class="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0
+                                {% if res.is_file %}
+                                    {% if res.file_extension in 'PDF' %}bg-rose-600
+                                    {% elif res.file_extension in 'ZIP RAR TAR GZ 7Z' %}bg-amber-600
+                                    {% elif res.file_extension in 'PNG JPG JPEG WEBP SVG GIF' %}bg-purple-600
+                                    {% else %}bg-indigo-600{% endif %}
+                                {% elif res.resource_type == 'document' %}bg-blue-600
+                                {% elif res.resource_type == 'file' %}bg-amber-600
+                                {% else %}bg-slate-600{% endif %}">
+                                {% if res.is_file %}
+                                    <i class="ph-bold ph-file text-sm"></i>
+                                {% else %}
+                                    <i class="ph-bold ph-link-simple text-sm"></i>
+                                {% endif %}
+                            </div>
+                            <div class="overflow-hidden">
+                                <h4 class="text-xs font-bold text-adw-main leading-snug truncate">{{ res.title }}</h4>
+                                <span class="text-[9px] text-adw-muted">Projet principal {% if res.file_size_formatted %}• {{ res.file_size_formatted }}{% endif %}</span>
+                            </div>
+                        </div>
+                        {% if res.description %}
+                        <p class="text-[11px] text-adw-muted mb-2 line-clamp-2">{{ res.description }}</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="pt-2 border-t border-[var(--border)] flex items-center justify-between text-xs">
+                        {% if res.is_file %}
+                        <a href="{{ res.target_url }}" download class="inline-flex items-center gap-1 font-semibold text-adw-accent hover:underline">
+                            <i class="ph-bold ph-download-simple text-xs"></i>
+                            <span>Télécharger</span>
+                        </a>
+                        {% else %}
+                        <a href="{{ res.target_url }}" target="_blank" rel="noopener noreferrer" 
+                           class="inline-flex items-center gap-1 font-semibold text-adw-accent hover:underline">
+                            <span>Consulter</span>
+                            <i class="ph ph-arrow-square-out text-xs"></i>
+                        </a>
+                        {% endif %}
+                        <a href="{{ res.target_url }}" target="_blank" rel="noopener noreferrer" class="text-adw-muted hover:text-adw-main p-1" title="Aperçu">
+                            <i class="ph ph-arrow-square-out text-xs"></i>
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- CONTENU ONGLET 5 : GESTIONNAIRE DE MOTS DE PASSE & ACCÈS         -->
     <!-- ================================================================= -->
     <div id="tab-content-passwords" class="tab-pane hidden flex-1">
         
@@ -377,7 +669,7 @@
 </div>
 
 <!-- ===================================================================== -->
-<!-- MODAL : AJOUTER UNE NOUVELLE TÂCHE (DANS LE SOUS-PROJET)             -->
+<!-- MODAL : AJOUTER UNE NOUVELLE TÂCHE (AVEC DATES ET DEADLINE)           -->
 <!-- ===================================================================== -->
 <div id="task-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
     <div class="w-full max-w-lg rounded-3xl p-7 adw-card shadow-2xl relative" onclick="event.stopPropagation()">
@@ -414,13 +706,18 @@
                 </div>
             </div>
 
+            <div>
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Assigner à</label>
+                {{ task_form.assigned_to }}
+            </div>
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Assigner à</label>
-                    {{ task_form.assigned_to }}
+                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Date de début</label>
+                    {{ task_form.start_date }}
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Date limite</label>
+                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Date limite (Deadline)</label>
                     {{ task_form.due_date }}
                 </div>
             </div>
@@ -436,6 +733,93 @@
                 </button>
                 <button type="submit" class="px-5 py-2.5 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer">
                     Ajouter la tâche
+                </button>
+            </div>
+        </form>
+
+    </div>
+</div>
+
+<!-- ===================================================================== -->
+<!-- MODAL : AJOUTER UN FICHIER OU DOCUMENT DANS LE SOUS-PROJET            -->
+<!-- ===================================================================== -->
+<div id="resource-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+    <div class="w-full max-w-lg rounded-3xl p-7 adw-card shadow-2xl relative" onclick="event.stopPropagation()">
+        
+        <div class="flex items-center justify-between mb-5 pb-3 border-b border-[var(--border)]">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-xl flex items-center justify-center text-white adw-logo-badge">
+                    <i class="ph-bold ph-files text-base"></i>
+                </div>
+                <h3 class="text-base font-bold text-adw-main">Ajouter un Fichier ou Document</h3>
+            </div>
+            <button type="button" onclick="closeModal('resource-modal')" class="text-adw-muted hover:text-adw-main cursor-pointer p-1">
+                <i class="ph-bold ph-x text-base"></i>
+            </button>
+        </div>
+
+        <form method="post" action="{% url 'projects:subproject_resource_create' project_slug=project.slug subproject_slug=subproject.slug %}" enctype="multipart/form-data" class="space-y-4">
+            {% csrf_token %}
+
+            <!-- Sélecteur Type d'entrée (Fichier local vs Lien URL) -->
+            <div>
+                <label class="block text-xs font-semibold mb-2 text-adw-main">Mode d'ajout</label>
+                <div class="grid grid-cols-2 gap-2 p-1 rounded-2xl adw-card-subtle">
+                    <button type="button" 
+                            id="entry-tab-file-sub" 
+                            onclick="selectEntryTypeSub('file')" 
+                            class="py-2 px-3 rounded-xl text-xs font-semibold transition-all adw-btn-primary shadow-sm cursor-pointer flex items-center justify-center gap-1.5">
+                        <i class="ph-bold ph-upload-simple"></i>
+                        <span>Fichier local</span>
+                    </button>
+                    <button type="button" 
+                            id="entry-tab-url-sub" 
+                            onclick="selectEntryTypeSub('url')" 
+                            class="py-2 px-3 rounded-xl text-xs font-semibold transition-all text-adw-muted cursor-pointer flex items-center justify-center gap-1.5">
+                        <i class="ph-bold ph-link-simple"></i>
+                        <span>Lien web / URL</span>
+                    </button>
+                </div>
+                <input type="hidden" name="entry_type" id="id_entry_type_sub" value="file">
+            </div>
+
+            <!-- Champ Titre -->
+            <div>
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Nom / Titre du document</label>
+                {{ resource_form.title }}
+                <span class="text-[10px] text-adw-dim mt-1 block">Optionnel : le nom du fichier sera utilisé par défaut</span>
+            </div>
+
+            <!-- Champ Téléversement Fichier -->
+            <div id="section-file-input-sub">
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Sélectionner le fichier sur votre appareil <span class="text-adw-error">*</span></label>
+                {{ resource_form.file }}
+            </div>
+
+            <!-- Champ URL externe -->
+            <div id="section-url-input-sub" class="hidden">
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Lien URL complet <span class="text-adw-error">*</span></label>
+                {{ resource_form.url }}
+            </div>
+
+            <!-- Catégorie -->
+            <div>
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Catégorie</label>
+                {{ resource_form.resource_type }}
+            </div>
+
+            <!-- Description -->
+            <div>
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Description / Notes</label>
+                {{ resource_form.description }}
+            </div>
+
+            <div class="pt-4 flex items-center justify-end gap-3 border-t border-[var(--border)]">
+                <button type="button" onclick="closeModal('resource-modal')" class="px-4 py-2 rounded-2xl text-xs font-semibold text-adw-muted hover:text-adw-main cursor-pointer">
+                    Annuler
+                </button>
+                <button type="submit" class="px-5 py-2.5 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer">
+                    Enregistrer le fichier
                 </button>
             </div>
         </form>
@@ -506,7 +890,29 @@
 
 {% block extra_scripts %}
 <script>
+    const tasksGanttData = {{ tasks_gantt_json|safe }};
     let currentTab = '{{ active_tab|default:"general" }}';
+    let ganttViewDate = new Date();
+
+    function selectEntryTypeSub(type) {
+        document.getElementById('id_entry_type_sub').value = type;
+        const tabFile = document.getElementById('entry-tab-file-sub');
+        const tabUrl = document.getElementById('entry-tab-url-sub');
+        const secFile = document.getElementById('section-file-input-sub');
+        const secUrl = document.getElementById('section-url-input-sub');
+
+        if (type === 'file') {
+            tabFile.className = 'py-2 px-3 rounded-xl text-xs font-semibold transition-all adw-btn-primary shadow-sm cursor-pointer flex items-center justify-center gap-1.5';
+            tabUrl.className = 'py-2 px-3 rounded-xl text-xs font-semibold transition-all text-adw-muted cursor-pointer flex items-center justify-center gap-1.5';
+            secFile.classList.remove('hidden');
+            secUrl.classList.add('hidden');
+        } else {
+            tabUrl.className = 'py-2 px-3 rounded-xl text-xs font-semibold transition-all adw-btn-primary shadow-sm cursor-pointer flex items-center justify-center gap-1.5';
+            tabFile.className = 'py-2 px-3 rounded-xl text-xs font-semibold transition-all text-adw-muted cursor-pointer flex items-center justify-center gap-1.5';
+            secUrl.classList.remove('hidden');
+            secFile.classList.add('hidden');
+        }
+    }
 
     function switchTab(tabId) {
         currentTab = tabId;
@@ -527,24 +933,222 @@
             activeBtn.classList.add('adw-btn-primary', 'shadow-sm');
         }
 
-        // Adapter les boutons d'actions
+        // Adapter les boutons d'actions en haut à droite
         const btnAddTask = document.getElementById('btn-add-task');
+        const btnAddResource = document.getElementById('btn-add-resource');
         const btnAddCred = document.getElementById('btn-add-credential');
         const taskRedirectTab = document.getElementById('task-redirect-tab');
 
+        if (btnAddTask) btnAddTask.classList.add('hidden');
+        if (btnAddResource) btnAddResource.classList.add('hidden');
+        if (btnAddCred) btnAddCred.classList.add('hidden');
+
         if (tabId === 'passwords') {
-            if (btnAddTask) btnAddTask.classList.add('hidden');
             if (btnAddCred) btnAddCred.classList.remove('hidden');
+        } else if (tabId === 'resources') {
+            if (btnAddResource) btnAddResource.classList.remove('hidden');
         } else {
             if (btnAddTask) btnAddTask.classList.remove('hidden');
-            if (btnAddCred) btnAddCred.classList.add('hidden');
             if (taskRedirectTab) taskRedirectTab.value = tabId;
+        }
+
+        // Rendu spécifique au Gantt
+        if (tabId === 'gantt') {
+            renderGanttChart();
         }
 
         // Mettre à jour l'URL sans recharger
         const url = new URL(window.location);
         url.searchParams.set('tab', tabId);
         window.history.replaceState({}, '', url);
+    }
+
+    // =========================================================================
+    // MOTEUR DU CALENDRIER GANTT (VANILLA JS PERFORMANT)
+    // =========================================================================
+    function navigateGanttMonth(direction) {
+        ganttViewDate.setMonth(ganttViewDate.getMonth() + direction);
+        renderGanttChart();
+    }
+
+    function resetGanttToToday() {
+        ganttViewDate = new Date();
+        renderGanttChart(true);
+    }
+
+    function renderGanttChart(scrollToToday = false) {
+        const root = document.getElementById('gantt-matrix-root');
+        const monthLabel = document.getElementById('gantt-current-month-label');
+        if (!root) return;
+
+        const year = ganttViewDate.getFullYear();
+        const month = ganttViewDate.getMonth();
+        
+        // Formater le label du mois
+        const monthName = ganttViewDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        if (monthLabel) monthLabel.innerText = monthName;
+
+        // Calcul du nombre de jours dans le mois
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const dayCellWidth = 42; // pixels par colonne de jour
+        const sidebarWidth = 280; // largeur de la colonne des tâches
+
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+        if (tasksGanttData.length === 0) {
+            root.innerHTML = `
+                <div class="p-16 text-center flex flex-col items-center justify-center">
+                    <div class="w-12 h-12 rounded-2xl border flex items-center justify-center mb-3 adw-card-subtle">
+                        <i class="ph ph-calendar-blank text-2xl text-adw-muted"></i>
+                    </div>
+                    <p class="text-sm font-semibold text-adw-main">Aucune tâche disponible dans ce sous-projet</p>
+                    <p class="text-xs text-adw-muted mt-1">Créez une tâche avec une date limite pour visualiser sa timeline ici.</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Construction du Header des Jours
+        let headerDaysHtml = '';
+        const dayLetters = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(year, month, d);
+            const dayOfWeek = dateObj.getDay();
+            const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+            const dateIso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const isToday = (dateIso === todayStr);
+
+            headerDaysHtml += `
+                <div style="width: ${dayCellWidth}px;" 
+                     class="shrink-0 flex flex-col items-center justify-center py-2 text-center adw-gantt-cell ${isWeekend ? 'adw-gantt-weekend' : ''} ${isToday ? 'adw-gantt-today font-bold text-adw-accent' : 'text-adw-muted'}">
+                    <span class="text-[9px] uppercase font-semibold">${dayLetters[dayOfWeek]}</span>
+                    <span class="text-xs ${isToday ? 'px-1.5 py-0.5 rounded-full bg-[var(--accent)] text-white' : ''}">${d}</span>
+                </div>
+            `;
+        }
+
+        // Construction des Lignes de Tâches
+        let rowsHtml = '';
+        const monthStart = new Date(year, month, 1);
+        const monthEnd = new Date(year, month, daysInMonth, 23, 59, 59);
+
+        tasksGanttData.forEach((task, idx) => {
+            const taskStart = new Date(task.start_date);
+            const taskEnd = task.due_date ? new Date(task.due_date) : new Date(task.start_date);
+            
+            // Déterminer la couleur de la barre
+            let barColorClass = 'adw-gantt-bar-todo';
+            if (task.column_name.toLowerCase().includes('termin')) {
+                barColorClass = 'adw-gantt-bar-done';
+            } else if (task.column_name.toLowerCase().includes('cours')) {
+                barColorClass = 'adw-gantt-bar-progress';
+            } else if (task.priority === 'urgent' || (task.due_date && new Date(task.due_date) < today && !task.column_name.toLowerCase().includes('termin'))) {
+                barColorClass = 'adw-gantt-bar-urgent';
+            }
+
+            // Calcul du positionnement dans la grille du mois
+            let barHtml = '';
+            
+            if (taskEnd >= monthStart && taskStart <= monthEnd) {
+                const effectiveStartDay = taskStart < monthStart ? 1 : taskStart.getDate();
+                const effectiveEndDay = taskEnd > monthEnd ? daysInMonth : taskEnd.getDate();
+
+                const leftPos = (effectiveStartDay - 1) * dayCellWidth + 4;
+                const durationDays = Math.max(1, (effectiveEndDay - effectiveStartDay + 1));
+                const widthPx = Math.max(34, durationDays * dayCellWidth - 8);
+
+                barHtml = `
+                    <div class="adw-gantt-bar ${barColorClass}" 
+                         style="left: ${leftPos}px; width: ${widthPx}px; top: 12px;"
+                         title="${task.title} &#10;Statut: ${task.column_name} &#10;Assigné: ${task.assigned_name} &#10;Du: ${task.start_date} au: ${task.due_date || 'Non définie'}">
+                        <span class="truncate mr-1 text-[11px]">${task.title}</span>
+                        ${task.has_due_date ? '<span class="adw-gantt-deadline-pin" title="Deadline : ' + task.due_date + '"><i class="ph-fill ph-flag text-[8px] text-white"></i></span>' : ''}
+                    </div>
+                `;
+            }
+
+            // Cellules de fond pour la ligne
+            let rowGridCellsHtml = '';
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateObj = new Date(year, month, d);
+                const dayOfWeek = dateObj.getDay();
+                const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+                const dateIso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const isToday = (dateIso === todayStr);
+
+                rowGridCellsHtml += `
+                    <div style="width: ${dayCellWidth}px;" 
+                         class="shrink-0 h-full adw-gantt-cell ${isWeekend ? 'adw-gantt-weekend' : ''} ${isToday ? 'adw-gantt-today' : ''}">
+                    </div>
+                `;
+            }
+
+            // Statut Badge
+            let statusPillClass = 'bg-slate-500/20 text-slate-400';
+            if (task.column_name.toLowerCase().includes('termin')) statusPillClass = 'bg-emerald-500/20 text-emerald-400';
+            else if (task.column_name.toLowerCase().includes('cours')) statusPillClass = 'bg-sky-500/20 text-sky-400';
+
+            rowsHtml += `
+                <div class="flex items-stretch border-b border-[var(--border-subtle)] hover:bg-black/5 dark:hover:bg-white/5 transition-colors group">
+                    
+                    <!-- Sidebar Colonne Tâche (Sticky gauche) -->
+                    <div style="width: ${sidebarWidth}px;" class="adw-gantt-sidebar shrink-0 p-3 flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 adw-user-avatar" title="${task.assigned_name}">
+                                ${task.assigned_avatar}
+                            </div>
+                            <div class="truncate">
+                                <span class="block text-xs font-semibold text-adw-main truncate" title="${task.title}">${task.title}</span>
+                                <span class="block text-[10px] text-adw-muted truncate">${task.assigned_name}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${statusPillClass}">${task.column_name}</span>
+                            ${task.has_due_date ? `<span class="text-[9px] font-mono text-adw-muted">${task.due_date.slice(5)}</span>` : '<span class="text-[9px] text-adw-dim italic">-</span>'}
+                        </div>
+                    </div>
+
+                    <!-- Zone graphique du Gantt (Timeline) -->
+                    <div class="flex relative flex-1 min-h-[52px]">
+                        ${rowGridCellsHtml}
+                        ${barHtml}
+                    </div>
+
+                </div>
+            `;
+        });
+
+        // Assemblage final du composant
+        root.innerHTML = `
+            <div class="flex flex-col">
+                <!-- Ligne d'en-tête -->
+                <div class="flex items-stretch border-b border-[var(--border)] bg-[var(--surface-input)]">
+                    <div style="width: ${sidebarWidth}px;" class="adw-gantt-sidebar shrink-0 px-4 py-2.5 flex items-center justify-between text-xs font-bold text-adw-main bg-[var(--surface-input)]">
+                        <span>Tâches & Assignation</span>
+                        <span class="text-[10px] text-adw-muted">Échéance</span>
+                    </div>
+                    <div class="flex">
+                        ${headerDaysHtml}
+                    </div>
+                </div>
+
+                <!-- Lignes de tâches -->
+                <div class="flex flex-col">
+                    ${rowsHtml}
+                </div>
+            </div>
+        `;
+
+        if (scrollToToday) {
+            const scrollCont = document.getElementById('gantt-scroll-container');
+            if (scrollCont) {
+                const todayDay = today.getDate();
+                scrollCont.scrollLeft = Math.max(0, (todayDay - 3) * dayCellWidth);
+            }
+        }
     }
 
     function openModal(modalId) {

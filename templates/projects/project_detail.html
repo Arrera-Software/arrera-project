@@ -68,7 +68,7 @@
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-lg font-bold tracking-tight text-adw-main">Sous-projets</h2>
-            <p class="text-xs text-adw-muted">Chaque sous-projet contient son propre tableau Kanban et coffre-fort de mots de passe.</p>
+            <p class="text-xs text-adw-muted">Chaque sous-projet contient son tableau Kanban, planning Gantt, documents et mots de passe.</p>
         </div>
         {% if is_admin %}
         <button type="button" 
@@ -82,7 +82,7 @@
 
     <!-- Grille des Sous-projets -->
     {% if subprojects %}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
         {% for sub in subprojects %}
         <a href="{% url 'projects:subproject_detail' project_slug=project.slug subproject_slug=sub.slug %}" 
            class="group rounded-3xl p-6 adw-card hover:border-[var(--accent)] hover:-translate-y-0.5 transition-all block">
@@ -94,7 +94,11 @@
                 <div class="flex items-center gap-2">
                     <span class="px-2.5 py-1 rounded-xl text-[10px] font-bold adw-card-subtle flex items-center gap-1">
                         <i class="ph ph-check-square"></i>
-                        {{ sub.tasks.count }} tâche{{ sub.tasks.count|pluralize }}
+                        {{ sub.tasks.count }}
+                    </span>
+                    <span class="px-2.5 py-1 rounded-xl text-[10px] font-bold adw-card-subtle flex items-center gap-1">
+                        <i class="ph ph-files"></i>
+                        {{ sub.resources.count }}
                     </span>
                     <span class="px-2.5 py-1 rounded-xl text-[10px] font-bold adw-card-subtle flex items-center gap-1">
                         <i class="ph ph-lock-key"></i>
@@ -126,7 +130,7 @@
         {% endfor %}
     </div>
     {% else %}
-    <div class="rounded-3xl p-12 text-center flex flex-col items-center justify-center adw-card">
+    <div class="rounded-3xl p-12 text-center flex flex-col items-center justify-center adw-card mb-12">
         <div class="w-14 h-14 rounded-2xl border flex items-center justify-center mb-4 adw-card-subtle">
             <i class="ph ph-kanban text-3xl"></i>
         </div>
@@ -145,9 +149,137 @@
     </div>
     {% endif %}
 
+    <!-- ================================================================= -->
+    <!-- SECTION : DOCUMENTS & FICHIERS DU PROJET                          -->
+    <!-- ================================================================= -->
+    <div class="pt-6 border-t border-[var(--border)]">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h2 class="text-lg font-bold tracking-tight text-adw-main flex items-center gap-2">
+                    <i class="ph-bold ph-files text-adw-accent"></i>
+                    <span>Documents & Fichiers du Projet</span>
+                </h2>
+                <p class="text-xs text-adw-muted">Fichiers hébergés, spécifications, documents partagés et liens utiles.</p>
+            </div>
+            <button type="button" 
+                    onclick="openModal('resource-modal')" 
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer shadow-sm">
+                <i class="ph-bold ph-plus"></i>
+                <span>Ajouter un fichier / doc</span>
+            </button>
+        </div>
+
+        {% if all_resources %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {% for res in all_resources %}
+            <div class="rounded-3xl p-5 adw-card flex flex-col justify-between hover:border-[var(--accent)] transition-all">
+                <div>
+                    <div class="flex items-start justify-between gap-3 mb-3">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0
+                                {% if res.is_file %}
+                                    {% if res.file_extension in 'PDF' %}bg-rose-600
+                                    {% elif res.file_extension in 'ZIP RAR TAR GZ 7Z' %}bg-amber-600
+                                    {% elif res.file_extension in 'PNG JPG JPEG WEBP SVG GIF' %}bg-purple-600
+                                    {% elif res.file_extension in 'DOC DOCX XLS XLSX PPT PPTX CSV' %}bg-blue-600
+                                    {% else %}bg-indigo-600{% endif %}
+                                {% elif res.resource_type == 'document' %}bg-blue-600
+                                {% elif res.resource_type == 'file' %}bg-amber-600
+                                {% elif res.resource_type == 'design' %}bg-purple-600
+                                {% elif res.resource_type == 'repo' %}bg-emerald-600
+                                {% else %}bg-slate-600{% endif %}">
+                                {% if res.is_file %}
+                                    {% if res.file_extension in 'PDF' %}<i class="ph-bold ph-file-pdf text-lg"></i>
+                                    {% elif res.file_extension in 'ZIP RAR TAR GZ 7Z' %}<i class="ph-bold ph-file-archive text-lg"></i>
+                                    {% elif res.file_extension in 'PNG JPG JPEG WEBP SVG GIF' %}<i class="ph-bold ph-file-image text-lg"></i>
+                                    {% elif res.file_extension in 'DOC DOCX' %}<i class="ph-bold ph-file-doc text-lg"></i>
+                                    {% elif res.file_extension in 'XLS XLSX CSV' %}<i class="ph-bold ph-file-xls text-lg"></i>
+                                    {% else %}<i class="ph-bold ph-file text-lg"></i>{% endif %}
+                                {% elif res.resource_type == 'document' %}<i class="ph-bold ph-file-text text-lg"></i>
+                                {% elif res.resource_type == 'file' %}<i class="ph-bold ph-cloud-arrow-down text-lg"></i>
+                                {% elif res.resource_type == 'design' %}<i class="ph-bold ph-figma-logo text-lg"></i>
+                                {% elif res.resource_type == 'repo' %}<i class="ph-bold ph-git-branch text-lg"></i>
+                                {% else %}<i class="ph-bold ph-link-simple text-lg"></i>{% endif %}
+                            </div>
+                            <div class="overflow-hidden">
+                                <h4 class="text-xs font-bold text-adw-main leading-snug truncate" title="{{ res.title }}">{{ res.title }}</h4>
+                                <div class="flex items-center gap-1.5 text-[10px] text-adw-muted font-medium mt-0.5">
+                                    {% if res.is_file %}
+                                        <span class="px-1.5 py-0.2 rounded bg-black/10 dark:bg-white/10 text-adw-main font-bold uppercase">{{ res.file_extension|default:"Fichier" }}</span>
+                                        {% if res.file_size_formatted %}<span>• {{ res.file_size_formatted }}</span>{% endif %}
+                                    {% else %}
+                                        <span class="capitalize">{{ res.get_resource_type_display }}</span>
+                                    {% endif %}
+                                    
+                                    {% if res.subproject %}
+                                    <span>• <span class="text-adw-accent font-semibold">{{ res.subproject.name }}</span></span>
+                                    {% else %}
+                                    <span>• <span class="text-adw-dim">Global</span></span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Suppression -->
+                        <form method="post" action="{% url 'projects:resource_delete' resource_id=res.id %}" class="inline m-0 shrink-0">
+                            {% csrf_token %}
+                            <button type="submit" 
+                                    onclick="return confirm('Supprimer ce fichier ?')" 
+                                    class="p-1 rounded-lg text-adw-dim hover:text-adw-error transition-colors cursor-pointer" 
+                                    title="Supprimer">
+                                <i class="ph ph-trash text-xs"></i>
+                            </button>
+                        </form>
+                    </div>
+
+                    {% if res.description %}
+                    <p class="text-[11px] text-adw-muted mb-3 line-clamp-2 leading-relaxed">{{ res.description }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="mt-2 pt-3 border-t border-[var(--border)] flex items-center justify-between">
+                    {% if res.is_file %}
+                    <a href="{{ res.target_url }}" download class="inline-flex items-center gap-1.5 text-xs font-semibold text-adw-accent hover:underline">
+                        <i class="ph-bold ph-download-simple"></i>
+                        <span>Télécharger</span>
+                    </a>
+                    <a href="{{ res.target_url }}" target="_blank" rel="noopener noreferrer" class="text-xs text-adw-muted hover:text-adw-main p-1" title="Ouvrir dans un nouvel onglet">
+                        <i class="ph ph-arrow-square-out"></i>
+                    </a>
+                    {% else %}
+                    <a href="{{ res.target_url }}" target="_blank" rel="noopener noreferrer" 
+                       class="inline-flex items-center gap-1.5 text-xs font-semibold text-adw-accent hover:underline truncate max-w-[200px]">
+                        <span>Ouvrir le lien</span>
+                        <i class="ph ph-arrow-square-out text-xs"></i>
+                    </a>
+                    <button type="button" 
+                            onclick="copyToClipboard('{{ res.target_url }}', this)" 
+                            class="text-xs text-adw-muted hover:text-adw-main transition-colors p-1 cursor-pointer" 
+                            title="Copier l'URL">
+                        <i class="ph ph-copy"></i>
+                    </button>
+                    {% endif %}
+                </div>
+
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="rounded-3xl p-8 text-center flex flex-col items-center justify-center adw-card">
+            <div class="w-12 h-12 rounded-2xl border flex items-center justify-center mb-3 adw-card-subtle">
+                <i class="ph ph-files text-2xl text-adw-muted"></i>
+            </div>
+            <p class="text-xs font-semibold text-adw-main">Aucun document ou fichier ajouté</p>
+            <p class="text-[11px] text-adw-muted mt-0.5">Téléversez vos fichiers PDF, archives, images ou ajoutez des liens externes ici.</p>
+        </div>
+        {% endif %}
+    </div>
+
 </div>
 
-<!-- MODAL : CRÉER UN SOUS-PROJET (ADMIN / CHEF DE PROJET) -->
+<!-- ===================================================================== -->
+<!-- MODAL : CRÉER UN SOUS-PROJET                                         -->
+<!-- ===================================================================== -->
 {% if is_admin %}
 <div id="subproject-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
     <div class="w-full max-w-lg rounded-3xl p-7 adw-card shadow-2xl relative" onclick="event.stopPropagation()">
@@ -190,10 +322,117 @@
     </div>
 </div>
 {% endif %}
+
+<!-- ===================================================================== -->
+<!-- MODAL : AJOUTER UN FICHIER OU DOCUMENT (PROJET)                      -->
+<!-- ===================================================================== -->
+<div id="resource-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+    <div class="w-full max-w-lg rounded-3xl p-7 adw-card shadow-2xl relative" onclick="event.stopPropagation()">
+        
+        <div class="flex items-center justify-between mb-5 pb-3 border-b border-[var(--border)]">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-xl flex items-center justify-center text-white adw-logo-badge">
+                    <i class="ph-bold ph-files text-base"></i>
+                </div>
+                <h3 class="text-base font-bold text-adw-main">Ajouter un Fichier ou Document</h3>
+            </div>
+            <button type="button" onclick="closeModal('resource-modal')" class="text-adw-muted hover:text-adw-main cursor-pointer p-1">
+                <i class="ph-bold ph-x text-base"></i>
+            </button>
+        </div>
+
+        <form method="post" action="{% url 'projects:project_resource_create' project_slug=project.slug %}" enctype="multipart/form-data" class="space-y-4">
+            {% csrf_token %}
+
+            <!-- Sélecteur Type d'entrée (Fichier local vs Lien URL) -->
+            <div>
+                <label class="block text-xs font-semibold mb-2 text-adw-main">Mode d'ajout</label>
+                <div class="grid grid-cols-2 gap-2 p-1 rounded-2xl adw-card-subtle">
+                    <button type="button" 
+                            id="entry-tab-file" 
+                            onclick="selectEntryType('file')" 
+                            class="py-2 px-3 rounded-xl text-xs font-semibold transition-all adw-btn-primary shadow-sm cursor-pointer flex items-center justify-center gap-1.5">
+                        <i class="ph-bold ph-upload-simple"></i>
+                        <span>Fichier local</span>
+                    </button>
+                    <button type="button" 
+                            id="entry-tab-url" 
+                            onclick="selectEntryType('url')" 
+                            class="py-2 px-3 rounded-xl text-xs font-semibold transition-all text-adw-muted cursor-pointer flex items-center justify-center gap-1.5">
+                        <i class="ph-bold ph-link-simple"></i>
+                        <span>Lien web / URL</span>
+                    </button>
+                </div>
+                <input type="hidden" name="entry_type" id="id_entry_type" value="file">
+            </div>
+
+            <!-- Champ Titre -->
+            <div>
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Nom / Titre du document</label>
+                {{ resource_form.title }}
+                <span class="text-[10px] text-adw-dim mt-1 block">Optionnel : le nom du fichier sera utilisé par défaut</span>
+            </div>
+
+            <!-- Champ Téléversement Fichier -->
+            <div id="section-file-input">
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Sélectionner le fichier sur votre appareil <span class="text-adw-error">*</span></label>
+                {{ resource_form.file }}
+            </div>
+
+            <!-- Champ URL externe -->
+            <div id="section-url-input" class="hidden">
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Lien URL complet <span class="text-adw-error">*</span></label>
+                {{ resource_form.url }}
+            </div>
+
+            <!-- Catégorie -->
+            <div>
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Catégorie</label>
+                {{ resource_form.resource_type }}
+            </div>
+
+            <!-- Description -->
+            <div>
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Description / Notes</label>
+                {{ resource_form.description }}
+            </div>
+
+            <div class="pt-4 flex items-center justify-end gap-3 border-t border-[var(--border)]">
+                <button type="button" onclick="closeModal('resource-modal')" class="px-4 py-2 rounded-2xl text-xs font-semibold text-adw-muted hover:text-adw-main cursor-pointer">
+                    Annuler
+                </button>
+                <button type="submit" class="px-5 py-2.5 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer">
+                    Enregistrer le fichier
+                </button>
+            </div>
+        </form>
+
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+    function selectEntryType(type) {
+        document.getElementById('id_entry_type').value = type;
+        const tabFile = document.getElementById('entry-tab-file');
+        const tabUrl = document.getElementById('entry-tab-url');
+        const secFile = document.getElementById('section-file-input');
+        const secUrl = document.getElementById('section-url-input');
+
+        if (type === 'file') {
+            tabFile.className = 'py-2 px-3 rounded-xl text-xs font-semibold transition-all adw-btn-primary shadow-sm cursor-pointer flex items-center justify-center gap-1.5';
+            tabUrl.className = 'py-2 px-3 rounded-xl text-xs font-semibold transition-all text-adw-muted cursor-pointer flex items-center justify-center gap-1.5';
+            secFile.classList.remove('hidden');
+            secUrl.classList.add('hidden');
+        } else {
+            tabUrl.className = 'py-2 px-3 rounded-xl text-xs font-semibold transition-all adw-btn-primary shadow-sm cursor-pointer flex items-center justify-center gap-1.5';
+            tabFile.className = 'py-2 px-3 rounded-xl text-xs font-semibold transition-all text-adw-muted cursor-pointer flex items-center justify-center gap-1.5';
+            secUrl.classList.remove('hidden');
+            secFile.classList.add('hidden');
+        }
+    }
+
     function openModal(modalId) {
         const modal = document.getElementById(modalId);
         if (modal) modal.classList.remove('hidden');
@@ -202,6 +441,16 @@
     function closeModal(modalId) {
         const modal = document.getElementById(modalId);
         if (modal) modal.classList.add('hidden');
+    }
+
+    function copyToClipboard(text, btnElement) {
+        navigator.clipboard.writeText(text).then(() => {
+            const originalIcon = btnElement.innerHTML;
+            btnElement.innerHTML = '<i class="ph-bold ph-check text-green-400"></i>';
+            setTimeout(() => {
+                btnElement.innerHTML = originalIcon;
+            }, 1500);
+        });
     }
 </script>
 {% endblock %}

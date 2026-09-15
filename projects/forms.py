@@ -1,5 +1,6 @@
+import os
 from django import forms
-from .models import Project, SubProject, Task, ProjectCredential, KanbanColumn
+from .models import Project, SubProject, Task, ProjectCredential, ProjectResource, KanbanColumn
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -78,10 +79,10 @@ class SubProjectForm(forms.ModelForm):
 
 
 class TaskForm(forms.ModelForm):
-    """Formulaire d'ajout ou modification d'une tâche."""
+    """Formulaire d'ajout ou modification d'une tâche avec dates de début et deadline."""
     class Meta:
         model = Task
-        fields = ['title', 'description', 'column', 'assigned_to', 'priority', 'due_date']
+        fields = ['title', 'description', 'column', 'assigned_to', 'priority', 'start_date', 'due_date']
         widgets = {
             'title': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
@@ -101,6 +102,10 @@ class TaskForm(forms.ModelForm):
             }),
             'priority': forms.Select(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input cursor-pointer',
+            }),
+            'start_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
             }),
             'due_date': forms.DateInput(attrs={
                 'type': 'date',
@@ -150,3 +155,59 @@ class ProjectCredentialForm(forms.ModelForm):
                 'rows': 3,
             }),
         }
+
+
+class ProjectResourceForm(forms.ModelForm):
+    """
+    Formulaire d'ajout d'un fichier téléversé ou d'un lien web.
+    Permet à l'utilisateur de charger directement des fichiers (PDF, ZIP, images...)
+    ou d'ajouter un lien externe (Google Docs, Figma, GitHub...).
+    """
+    class Meta:
+        model = ProjectResource
+        fields = ['entry_type', 'title', 'file', 'url', 'resource_type', 'description']
+        widgets = {
+            'entry_type': forms.RadioSelect(attrs={
+                'class': 'hidden',
+            }),
+            'title': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
+                'placeholder': 'ex: Cahier des charges, Maquettes Figma, Spécifications v1...',
+            }),
+            'file': forms.FileInput(attrs={
+                'class': 'w-full px-4 py-2 rounded-2xl text-sm adw-input cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[var(--accent)] file:text-white hover:file:opacity-90',
+            }),
+            'url': forms.URLInput(attrs={
+                'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
+                'placeholder': 'https://docs.google.com/... ou https://figma.com/...',
+            }),
+            'resource_type': forms.Select(attrs={
+                'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input cursor-pointer',
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
+                'placeholder': 'Description, remarques ou consignes...',
+                'rows': 2,
+            }),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        entry_type = cleaned_data.get('entry_type') or 'file'
+        uploaded_file = cleaned_data.get('file')
+        url = cleaned_data.get('url')
+        title = cleaned_data.get('title')
+
+        if entry_type == 'file':
+            if not uploaded_file and not self.instance.file:
+                raise forms.ValidationError({'file': "Veuillez sélectionner un fichier à téléverser."})
+            # Si le titre est vide, utiliser le nom du fichier par défaut
+            if not title and uploaded_file:
+                cleaned_data['title'] = os.path.basename(uploaded_file.name)
+        elif entry_type == 'url':
+            if not url:
+                raise forms.ValidationError({'url': "Veuillez renseigner un lien URL valide."})
+            if not title:
+                cleaned_data['title'] = url
+
+        return cleaned_data

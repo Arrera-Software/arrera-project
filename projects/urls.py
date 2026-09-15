@@ -3,7 +3,7 @@ from . import views
 
 app_name = 'projects'
 
-urlpatterns = [
+urlpatterns = [\
     # Projets principaux
     path('nouveau/', views.project_create_view, name='project_create'),
     path('<slug:slug>/', views.project_detail_view, name='project_detail'),
@@ -21,4 +21,9 @@ urlpatterns = [
     # Mots de passe / Accès (dans le sous-projet)
     path('<slug:project_slug>/<slug:subproject_slug>/credentials/create/', views.credential_create_view, name='credential_create'),
     path('credentials/<int:credential_id>/delete/', views.credential_delete_view, name='credential_delete'),
+
+    # Documents & Fichiers (Projet & Sous-projet)
+    path('<slug:project_slug>/resources/create/', views.resource_create_view, name='project_resource_create'),
+    path('<slug:project_slug>/<slug:subproject_slug>/resources/create/', views.resource_create_view, name='subproject_resource_create'),
+    path('resources/<int:resource_id>/delete/', views.resource_delete_view, name='resource_delete'),
 ]
