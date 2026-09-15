@@ -1,9 +1,20 @@
 import os
 from django import forms
+from django.conf import settings
 from .models import Project, SubProject, Task, ProjectCredential, ProjectResource, KanbanColumn
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
+
+# Extensions autorisées au téléversement (liste blanche).
+# Les formats exécutables dans un navigateur (svg, html, js...) sont exclus
+# pour empêcher le XSS stocké via fichier servi sur le même domaine.
+ALLOWED_UPLOAD_EXTENSIONS = {
+    'pdf', 'txt', 'csv', 'md', 'rtf',
+    'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp',
+    'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp',
+    'zip', 'tar', 'gz', '7z', 'rar',
+}
 
 
 class UserModelChoiceField(forms.ModelChoiceField):
@@ -125,10 +136,24 @@ class TaskForm(forms.ModelForm):
 
 
 class ProjectCredentialForm(forms.ModelForm):
-    """Formulaire d'ajout d'un mot de passe / accès dans un sous-projet."""
+    """
+    Formulaire d'ajout d'un mot de passe / accès dans un sous-projet.
+    Le secret saisi est chiffré avant enregistrement (jamais stocké en clair).
+    """
+    # Champ non-modèle : le mot de passe en clair saisi par l'utilisateur.
+    password = forms.CharField(
+        label="Mot de passe / Clé secrète",
+        widget=forms.PasswordInput(attrs={
+            'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
+            'placeholder': 'Mot de passe ou clé secrète',
+            'render_value': False,
+            'required': True,
+        })
+    )
+
     class Meta:
         model = ProjectCredential
-        fields = ['title', 'service_url', 'username', 'password', 'notes']
+        fields = ['title', 'service_url', 'username', 'notes']
         widgets = {
             'title': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
@@ -143,18 +168,20 @@ class ProjectCredentialForm(forms.ModelForm):
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
                 'placeholder': 'Identifiant / Login / Utilisateur',
             }),
-            'password': forms.PasswordInput(attrs={
-                'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
-                'placeholder': 'Mot de passe ou clé secrète',
-                'render_value': True,
-                'required': True,
-            }),
             'notes': forms.Textarea(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
                 'placeholder': 'Notes supplémentaires, ports, certificats...',
                 'rows': 3,
             }),
         }
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        # Chiffre le secret saisi avant persistance.
+        instance.set_secret(self.cleaned_data.get('password', ''))
+        if commit:
+            instance.save()
+        return instance
 
 
 class ProjectResourceForm(forms.ModelForm):
@@ -190,6 +217,26 @@ class ProjectResourceForm(forms.ModelForm):
                 'rows': 2,
             }),
         }
+
+    def clean_file(self):
+        """Valide l'extension et la taille du fichier téléversé (liste blanche)."""
+        uploaded_file = self.cleaned_data.get('file')
+        if not uploaded_file or not getattr(uploaded_file, 'name', ''):
+            return uploaded_file
+
+        ext = os.path.splitext(uploaded_file.name)[1].lower().lstrip('.')
+        if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+            raise forms.ValidationError(
+                "Type de fichier non autorisé. Extensions acceptées : "
+                + ", ".join(sorted(ALLOWED_UPLOAD_EXTENSIONS)) + "."
+            )
+
+        max_size = getattr(settings, 'MAX_UPLOAD_SIZE', 25 * 1024 * 1024)
+        if getattr(uploaded_file, 'size', 0) > max_size:
+            raise forms.ValidationError(
+                f"Fichier trop volumineux (max {max_size // (1024 * 1024)} Mo)."
+            )
+        return uploaded_file
 
     def clean(self):
         cleaned_data = super().clean()

@@ -10,10 +10,13 @@
     <link rel="icon" type="image/svg+xml" href="{% static 'img/icon.svg' %}">
     <link rel="alternate icon" type="image/png" href="{% static 'img/icon.png' %}">
 
-    <!-- Tailwind CSS (Framework Utilitaires) -->
+    <!-- Tailwind CSS (Framework Utilitaires)
+         NOTE SÉCURITÉ : le Play CDN Tailwind est déconseillé en production
+         (compiler Tailwind localement). Origine restreinte par la CSP. -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Phosphor Icons -->
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Phosphor Icons — version épinglée (évite le déploiement d'une version non auditée).
+         Idéalement à héberger localement avec intégrité (SRI). -->
+    <script src="https://unpkg.com/@phosphor-icons/web@2.1.1" crossorigin="anonymous"></script>
     <!-- Feuille de styles CSS externe Arrera Adwaita -->
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     {% block extra_head %}{% endblock %}

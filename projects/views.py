@@ -1,12 +1,17 @@
 import json
+import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
+from django.http import JsonResponse
 from django.utils import timezone
 from .models import Project, SubProject, KanbanColumn, Task, ProjectCredential, ProjectResource
 from .forms import ProjectForm, SubProjectForm, TaskForm, ProjectCredentialForm, ProjectResourceForm
+
+# Journal dédié aux accès aux secrets du coffre-fort.
+credential_logger = logging.getLogger('projects.credentials')
 
 
 def check_project_access(user, project):
@@ -210,17 +215,19 @@ def subproject_detail_view(request, project_slug, subproject_slug):
 
     subproject = get_object_or_404(SubProject, project=project, slug=subproject_slug)
     columns = subproject.columns.prefetch_related('tasks__assigned_to').all()
-    credentials = subproject.credentials.all()
-    
+
+    is_admin = is_project_manager_or_admin(request.user, project)
+
+    # Le coffre-fort n'est visible que par le chef de projet / administrateur.
+    credentials = subproject.credentials.all() if is_admin else ProjectCredential.objects.none()
+
     # Documents
     subproject_resources = subproject.resources.all()
     parent_resources = project.resources.filter(subproject__isnull=True)
-    
+
     task_form = TaskForm(subproject=subproject)
     credential_form = ProjectCredentialForm()
     resource_form = ProjectResourceForm()
-
-    is_admin = is_project_manager_or_admin(request.user, project)
 
     # Récupérer les sous-projets frères pour la navigation rapide
     sibling_subprojects = project.subprojects.all()
@@ -356,6 +363,10 @@ def task_delete_view(request, task_id):
     if not check_project_access(request.user, project):
         raise PermissionDenied("Accès refusé.")
 
+    # Seuls le créateur de la tâche, le chef de projet ou l'administrateur peuvent la supprimer.
+    if not (is_project_manager_or_admin(request.user, project) or task.created_by_id == request.user.id):
+        raise PermissionDenied("Seul le créateur de la tâche ou un responsable peut la supprimer.")
+
     task.delete()
     messages.success(request, "Tâche supprimée.")
     redirect_tab = request.POST.get('redirect_tab', 'general')
@@ -365,10 +376,10 @@ def task_delete_view(request, task_id):
 @login_required
 @require_POST
 def credential_create_view(request, project_slug, subproject_slug):
-    """Ajout d'un identifiant / mot de passe dans le sous-projet."""
+    """Ajout d'un identifiant / mot de passe dans le sous-projet (chef de projet / admin)."""
     project = get_object_or_404(Project, slug=project_slug)
-    if not check_project_access(request.user, project):
-        raise PermissionDenied("Accès refusé.")
+    if not is_project_manager_or_admin(request.user, project):
+        raise PermissionDenied("Seul le chef de projet ou l'administrateur peut gérer le coffre-fort.")
 
     subproject = get_object_or_404(SubProject, project=project, slug=subproject_slug)
 
@@ -387,17 +398,38 @@ def credential_create_view(request, project_slug, subproject_slug):
 @login_required
 @require_POST
 def credential_delete_view(request, credential_id):
-    """Suppression d'un mot de passe / accès."""
+    """Suppression d'un mot de passe / accès (chef de projet / admin)."""
     cred = get_object_or_404(ProjectCredential, id=credential_id)
     subproject = cred.subproject
     project = subproject.project
 
-    if not check_project_access(request.user, project):
-        raise PermissionDenied("Accès refusé.")
+    if not is_project_manager_or_admin(request.user, project):
+        raise PermissionDenied("Seul le chef de projet ou l'administrateur peut gérer le coffre-fort.")
 
     cred.delete()
     messages.success(request, "Accès supprimé du coffre-fort.")
     return redirect(f"/projets/{project.slug}/{subproject.slug}/?tab=passwords")
+
+
+@login_required
+@require_POST
+def credential_reveal_view(request, credential_id):
+    """
+    Renvoie le secret déchiffré d'un identifiant, à la demande (bouton « révéler »
+    ou « copier »). Accès restreint au chef de projet / administrateur et journalisé.
+    Le secret n'est jamais présent dans le HTML initial de la page.
+    """
+    cred = get_object_or_404(ProjectCredential, id=credential_id)
+    project = cred.subproject.project
+
+    if not is_project_manager_or_admin(request.user, project):
+        raise PermissionDenied("Accès refusé au secret.")
+
+    credential_logger.info(
+        "Révélation du secret credential_id=%s par user_id=%s (%s) projet=%s",
+        cred.id, request.user.id, request.user.email, project.slug,
+    )
+    return JsonResponse({'password': cred.password_plaintext})
 
 
 @login_required

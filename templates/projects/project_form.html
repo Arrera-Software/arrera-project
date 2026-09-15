@@ -375,12 +375,18 @@
 
                 const badge = document.createElement('div');
                 badge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-medium adw-chip animate-in fade-in duration-150';
-                badge.innerHTML = `
-                    <span>${label}</span>
-                    <button type="button" onclick="removeMember('${value}')" class="text-xs hover:opacity-75 focus:outline-none cursor-pointer">
-                        <i class="ph-bold ph-x text-[10px]"></i>
-                    </button>
-                `;
+
+                const labelSpan = document.createElement('span');
+                labelSpan.textContent = label;   // textContent : aucune interprétation HTML
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'text-xs hover:opacity-75 focus:outline-none cursor-pointer';
+                removeBtn.innerHTML = '<i class="ph-bold ph-x text-[10px]"></i>';
+                removeBtn.addEventListener('click', () => removeMember(value));
+
+                badge.appendChild(labelSpan);
+                badge.appendChild(removeBtn);
                 container.appendChild(badge);
             }
         });

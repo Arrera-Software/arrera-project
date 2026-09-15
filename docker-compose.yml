@@ -10,8 +10,10 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "${DB_PORT:-5432}:5432"
+    # Port NON publié sur l'hôte : la base reste accessible uniquement au
+    # réseau interne Compose. Décommentez seulement pour un accès local ponctuel.
+    # ports:
+    #   - "127.0.0.1:${DB_PORT:-5432}:5432"
     restart: unless-stopped
 
   web:
@@ -19,9 +21,14 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: arrera_project_web
-    command: python manage.py runserver 0.0.0.0:8000
+    # Serveur de production. collectstatic prépare les fichiers statiques (WhiteNoise).
+    command: >
+      sh -c "python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+    # Le code source est copié dans l'image (pas de montage de volume en production).
+    # Seuls les médias téléversés sont persistés.
     volumes:
-      - .:/app:z
+      - media_data:/app/media
     ports:
       - "${WEB_PORT:-8020}:8000"
     env_file:
@@ -34,3 +41,4 @@ services:
 
 volumes:
   postgres_data:
+  media_data:

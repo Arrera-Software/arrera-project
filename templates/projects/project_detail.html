@@ -283,9 +283,9 @@
                             <span>Ouvrir</span>
                             <i class="ph ph-arrow-square-out text-xs"></i>
                         </a>
-                        <button type="button" 
-                                onclick="copyToClipboard('{{ res.target_url }}', this)" 
-                                class="text-adw-muted hover:text-adw-main transition-colors p-1 cursor-pointer" 
+                        <button type="button"
+                                class="copy-btn text-adw-muted hover:text-adw-main transition-colors p-1 cursor-pointer"
+                                data-copy="{{ res.target_url }}"
                                 title="Copier le lien">
                             <i class="ph ph-copy text-xs"></i>
                         </button>
@@ -665,5 +665,11 @@
             }, 1500);
         });
     }
+
+    // Écouteur délégué pour les boutons de copie (remplace les onclick inline).
+    document.addEventListener('click', function(e) {
+        const copyBtn = e.target.closest('.copy-btn');
+        if (copyBtn) copyToClipboard(copyBtn.dataset.copy, copyBtn);
+    });
 </script>
 {% endblock %}

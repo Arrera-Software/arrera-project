@@ -130,6 +130,14 @@ class Task(models.Model):
         choices=Priority.choices,
         default=Priority.MEDIUM
     )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_tasks',
+        verbose_name="Créé par"
+    )
     start_date = models.DateField("Date de début", null=True, blank=True)
     due_date = models.DateField("Date limite", null=True, blank=True)
     created_at = models.DateTimeField("Créé le", auto_now_add=True)
@@ -149,12 +157,17 @@ class Task(models.Model):
 
 
 class ProjectCredential(models.Model):
-    """Gestionnaire de mots de passe et accès intégré au sous-projet."""
+    """
+    Gestionnaire de mots de passe et accès intégré au sous-projet.
+    Le mot de passe est stocké CHIFFRÉ (Fernet) dans le champ `password`.
+    On y accède en clair via la propriété `password_plaintext` / `set_secret()`.
+    """
     subproject = models.ForeignKey(SubProject, on_delete=models.CASCADE, related_name='credentials')
     title = models.CharField("Intitulé de l'accès", max_length=150)
     service_url = models.CharField("URL / Serveur / Hôte", max_length=255, blank=True)
     username = models.CharField("Identifiant / Login", max_length=150, blank=True)
-    password = models.CharField("Mot de passe / Clé secrète", max_length=255)
+    # Contient le secret CHIFFRÉ (préfixe `enc:`). Longueur augmentée pour le ciphertext.
+    password = models.CharField("Mot de passe / Clé secrète (chiffré)", max_length=512)
     notes = models.TextField("Notes / Consignes d'accès", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -166,6 +179,17 @@ class ProjectCredential(models.Model):
 
     def __str__(self):
         return f"{self.subproject.name} - {self.title}"
+
+    def set_secret(self, raw_password):
+        """Chiffre et stocke un mot de passe en clair."""
+        from .crypto import encrypt
+        self.password = encrypt(raw_password or "")
+
+    @property
+    def password_plaintext(self):
+        """Déchiffre le secret pour affichage / copie (accès contrôlé côté vue)."""
+        from .crypto import decrypt
+        return decrypt(self.password)
 
 
 class ProjectResource(models.Model):

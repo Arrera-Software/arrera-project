@@ -23,6 +23,7 @@ urlpatterns = [
     # Mots de passe / Accès (dans le sous-projet)
     path('<slug:project_slug>/<slug:subproject_slug>/credentials/create/', views.credential_create_view, name='credential_create'),
     path('credentials/<int:credential_id>/delete/', views.credential_delete_view, name='credential_delete'),
+    path('credentials/<int:credential_id>/reveal/', views.credential_reveal_view, name='credential_reveal'),
 
     # Documents & Fichiers (Projet & Sous-projet)
     path('<slug:project_slug>/resources/create/', views.resource_create_view, name='project_resource_create'),
