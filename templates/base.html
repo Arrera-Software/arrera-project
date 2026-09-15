@@ -15,12 +15,19 @@
 </head>
 <body class="min-h-screen antialiased flex flex-col">
 
+    <!-- Notifications Toast -->
     {% if messages %}
-    <div class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-md">
+    <div class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-md" id="django-messages-container">
         {% for message in messages %}
-        <div class="flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border text-sm backdrop-blur-md {% if message.tags == 'error' %}adw-alert-error{% elif message.tags == 'success' %}adw-alert-success{% else %}adw-alert-info{% endif %}">
-            <i class="ph-bold {% if message.tags == 'error' %}ph-warning-circle text-adw-error{% elif message.tags == 'success' %}ph-check-circle text-green-500{% else %}ph-info text-adw-accent{% endif %} text-lg"></i>
-            <span class="flex-1">{{ message }}</span>
+        <div class="message-toast flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border text-sm backdrop-blur-md transition-all duration-300 {% if message.tags == 'error' %}adw-alert-error{% elif message.tags == 'success' %}adw-alert-success{% else %}adw-alert-info{% endif %}">
+            <i class="ph-bold {% if message.tags == 'error' %}ph-warning-circle text-adw-error{% elif message.tags == 'success' %}ph-check-circle text-green-500{% else %}ph-info text-adw-accent{% endif %} text-lg shrink-0"></i>
+            <span class="flex-1 text-xs leading-relaxed font-medium text-adw-main">{{ message }}</span>
+            <button type="button" 
+                    onclick="dismissNotification(this)" 
+                    class="p-1 -mr-1 rounded-xl text-adw-muted hover:text-adw-main hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0 focus:outline-none" 
+                    title="Fermer la notification">
+                <i class="ph-bold ph-x text-sm"></i>
+            </button>
         </div>
         {% endfor %}
     </div>
@@ -45,8 +52,17 @@
         {% endif %}
     {% endblock %}
 
-    <!-- Script global pour le menu utilisateur -->
+    <!-- Scripts globaux -->
     <script>
+        function dismissNotification(btn) {
+            const toast = btn.closest('.message-toast');
+            if (toast) {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-10px)';
+                setTimeout(() => toast.remove(), 250);
+            }
+        }
+
         function toggleUserMenu() {
             const menu = document.getElementById('user-menu-dropdown');
             const chevron = document.getElementById('user-menu-chevron');

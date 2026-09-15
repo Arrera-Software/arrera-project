@@ -16,10 +16,10 @@ class CustomUserCreationForm(UserCreationForm):
 
 
 class CustomUserChangeForm(UserChangeForm):
-    """Formulaire de modification d'un utilisateur dans l'admin Django."""
+    """Formulaire de modification d'un utilisateur dans l'admin Django épuré."""
     class Meta:
         model = User
-        fields = ('username', 'first_name', 'last_name', 'email', 'is_active', 'is_staff', 'is_superuser')
+        fields = ('username', 'first_name', 'last_name', 'email', 'is_active', 'is_superuser')
 
 
 class LoginForm(forms.Form):

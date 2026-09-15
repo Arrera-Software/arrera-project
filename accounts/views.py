@@ -8,6 +8,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.cache import never_cache
 from .forms import LoginForm
+from projects.models import Project
 
 
 @method_decorator(csrf_protect, name='dispatch')
@@ -16,7 +17,6 @@ class CustomLoginView(FormView):
     """
     Vue de connexion personnalisée avec sécurité renforcée.
     - Connexion STRICTEMENT par adresse e-mail.
-    - Protection contre le brute-force via django-axes.
     """
     template_name = 'accounts/login.html'
     form_class = LoginForm
@@ -35,7 +35,6 @@ class CustomLoginView(FormView):
     def form_valid(self, form):
         user = form.get_user()
         auth_login(self.request, user)
-        # Session par défaut expire à la fermeture ou selon settings
         return super().form_valid(form)
 
 
@@ -46,7 +45,17 @@ class CustomLogoutView(LogoutView):
 
 @login_required
 def dashboard_view(request):
-    """Page d'accueil après connexion."""
+    """
+    Page d'accueil après connexion.
+    - Superutilisateur : voit l'ensemble des projets créés.
+    - Utilisateur standard : voit les projets dont il est membre ou chef de projet.
+    """
+    if request.user.is_superuser:
+        projects = Project.objects.prefetch_related('members', 'subprojects', 'manager').all()
+    else:
+        projects = (request.user.assigned_projects.all() | request.user.managed_projects.all()).distinct().prefetch_related('members', 'subprojects', 'manager')
+
     return render(request, 'home.html', {
-        'user': request.user
+        'user': request.user,
+        'projects': projects,
     })

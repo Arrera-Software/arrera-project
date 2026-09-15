@@ -9,26 +9,101 @@
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-xl font-bold tracking-tight text-adw-main">Mes Projets</h2>
-            <p class="text-xs mt-0.5 text-adw-muted">Liste des projets auxquels vous êtes affecté</p>
+            <p class="text-xs mt-0.5 text-adw-muted">
+                {% if user.is_superuser %}
+                Tous les projets de l'organisation (Vue Administrateur)
+                {% else %}
+                Liste des projets dont vous êtes membre ou chef de projet
+                {% endif %}
+            </p>
         </div>
         {% if user.is_superuser %}
-        <button class="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer">
+        <a href="{% url 'projects:project_create' %}" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer">
             <i class="ph-bold ph-plus"></i>
             <span>Nouveau Projet</span>
-        </button>
+        </a>
         {% endif %}
     </div>
 
     <!-- Grille des projets -->
+    {% if projects %}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div class="rounded-3xl p-8 text-center flex flex-col items-center justify-center adw-card">
-            <div class="w-12 h-12 rounded-2xl border flex items-center justify-center mb-3 adw-card-subtle">
-                <i class="ph ph-folder-simple text-2xl"></i>
+        {% for project in projects %}
+        <a href="{% url 'projects:project_detail' slug=project.slug %}" 
+           class="group rounded-3xl p-6 adw-card hover:border-[var(--accent)] hover:-translate-y-0.5 transition-all block">
+            
+            <div class="flex items-start justify-between gap-4 mb-4">
+                <div class="w-11 h-11 rounded-2xl flex items-center justify-center text-white adw-logo-badge group-hover:scale-105 transition-transform">
+                    <i class="ph-bold ph-folder text-xl"></i>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    {% if project.manager %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/20" title="Chef de projet : {{ project.manager.full_name|default:project.manager.username }}">
+                        <i class="ph-bold ph-shield-star text-[10px]"></i>
+                        <span>{{ project.manager.first_name|default:project.manager.username }}</span>
+                    </span>
+                    {% endif %}
+
+                    <div class="flex -space-x-1.5 overflow-hidden">
+                        {% for member in project.members.all|slice:":4" %}
+                        <div class="w-6 h-6 rounded-full border border-[var(--surface)] flex items-center justify-center text-[10px] font-semibold adw-user-avatar" title="{{ member.full_name }}">
+                            {{ member.first_name|first|default:member.username|first|upper }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
-            <h3 class="text-sm font-semibold text-adw-main">Aucun projet initialisé</h3>
-            <p class="text-xs mt-1 max-w-xs text-adw-muted">Les projets assignés à votre compte apparaîtront ici.</p>
+
+            <h3 class="text-base font-bold text-adw-main group-hover:text-adw-accent transition-colors tracking-tight">
+                {{ project.name }}
+            </h3>
+
+            {% if project.description %}
+            <p class="text-xs text-adw-muted mt-1.5 line-clamp-2 leading-relaxed">
+                {{ project.description }}
+            </p>
+            {% else %}
+            <p class="text-xs text-adw-dim mt-1.5 italic">Aucune description</p>
+            {% endif %}
+
+            <div class="mt-6 pt-4 border-t border-[var(--border)] flex items-center justify-between text-xs text-adw-dim">
+                <span class="flex items-center gap-1.5">
+                    <i class="ph ph-kanban"></i>
+                    {{ project.subprojects.count }} sous-projet{{ project.subprojects.count|pluralize }}
+                </span>
+                <span class="flex items-center gap-1 text-adw-accent font-medium group-hover:translate-x-0.5 transition-transform">
+                    Ouvrir <i class="ph ph-arrow-right text-[10px]"></i>
+                </span>
+            </div>
+
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- État vide -->
+    <div class="grid grid-cols-1 gap-6">
+        <div class="rounded-3xl p-12 text-center flex flex-col items-center justify-center adw-card">
+            <div class="w-14 h-14 rounded-2xl border flex items-center justify-center mb-4 adw-card-subtle">
+                <i class="ph ph-folder-simple text-3xl"></i>
+            </div>
+            <h3 class="text-base font-semibold text-adw-main">Aucun projet initialisé</h3>
+            <p class="text-xs text-adw-muted mt-1 max-w-sm">
+                {% if user.is_superuser %}.
+                Vous n'avez pas encore créé de projet. Cliquez sur « Nouveau Projet » pour commencer.
+                {% else %}
+                Vous n'êtes actuellement affecté à aucun projet. Un administrateur doit vous y assigner.
+                {% endif %}
+            </p>
+            {% if user.is_superuser %}
+            <a href="{% url 'projects:project_create' %}" class="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-semibold adw-btn-primary">
+                <i class="ph-bold ph-plus"></i>
+                <span>Créer un premier projet</span>
+            </a>
+            {% endif %}
         </div>
     </div>
+    {% endif %}
 
 </div>
 {% endblock %}

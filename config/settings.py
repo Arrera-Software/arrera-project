@@ -36,19 +36,18 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # Sécurité & Protection contre les attaques par force brute
-    'axes',
     # Apps du projet
     'accounts',
+    'projects',
 ]
 
 # Modèle Utilisateur personnalisé
 AUTH_USER_MODEL = 'accounts.User'
 
-# Authentification stricte par e-mail & Axes brute-force
+# Authentification stricte par e-mail
 AUTHENTICATION_BACKENDS = [
-    'axes.backends.AxesStandaloneBackend',
     'accounts.backends.EmailAuthBackend',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 MIDDLEWARE = [
@@ -59,8 +58,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # Axes Middleware (doit être en fin de chaîne)
-    'axes.middleware.AxesMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -132,15 +129,6 @@ AUTH_PASSWORD_VALIDATORS = [
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'login'
-
-# --- Paramètres de Cybersécurité ---
-# Protection Force Brute (django-axes)
-AXES_USERNAME_FORM_FIELD = 'email'
-AXES_FAILURE_LIMIT = 5  # Bloque après 5 tentatives échouées
-AXES_COOLOFF_TIME = 15  # Blocage temporaire de 15 minutes (en minutes)
-AXES_RESET_ON_SUCCESS = True
-AXES_LOCKOUT_TEMPLATE = 'accounts/lockout.html'
-AXES_VERBOSE = True
 
 # Sécurité des Cookies & Sessions
 SESSION_COOKIE_HTTPONLY = True

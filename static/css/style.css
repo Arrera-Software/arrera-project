@@ -132,6 +132,13 @@ body {
     background-color: var(--error-bg);
 }
 
+/* Chips & Tags */
+.adw-chip {
+    background-color: var(--avatar-bg);
+    border: 1px solid var(--avatar-border);
+    color: var(--accent);
+}
+
 /* Cards & Containers */
 .adw-card {
     background-color: var(--surface);

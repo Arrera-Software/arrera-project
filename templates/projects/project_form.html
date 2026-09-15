@@ -1,0 +1,269 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ action_title }} • Arrera Project{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 flex-1">
+
+    <!-- Bouton retour -->
+    <div class="mb-6">
+        {% if is_edit %}
+        <a href="{% url 'projects:project_detail' slug=project.slug %}" class="inline-flex items-center gap-2 text-xs font-medium text-adw-muted hover:text-adw-main transition-colors">
+            <i class="ph ph-arrow-left text-sm"></i>
+            <span>Retour au projet</span>
+        </a>
+        {% else %}
+        <a href="{% url 'home' %}" class="inline-flex items-center gap-2 text-xs font-medium text-adw-muted hover:text-adw-main transition-colors">
+            <i class="ph ph-arrow-left text-sm"></i>
+            <span>Retour aux projets</span>
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Carte de formulaire du projet Adwaita -->
+    <div class="rounded-3xl p-8 adw-card">
+        
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-[var(--border)]">
+            <div class="w-10 h-10 rounded-2xl flex items-center justify-center text-white adw-logo-badge">
+                <i class="ph-bold {% if is_edit %}ph-sliders{% else %}ph-folder-plus{% endif %} text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-adw-main">{{ action_title }}</h1>
+                <p class="text-xs text-adw-muted">
+                    {% if is_edit %}
+                    Modifiez le nom, la description, le chef de projet et l'attribution des membres.
+                    {% else %}
+                    Seul l'administrateur peut configurer et assigner de nouveaux projets.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        <form method="post" class="space-y-6" id="project-form">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="p-4 rounded-2xl border text-xs adw-alert-error">
+                {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Nom du projet -->
+            <div>
+                <label for="{{ form.name.id_for_label }}" class="block text-xs font-semibold mb-2 text-adw-main">
+                    Nom du projet <span class="text-adw-error">*</span>
+                </label>
+                {{ form.name }}
+                {% if form.name.errors %}
+                <p class="mt-1.5 text-xs text-adw-error">{{ form.name.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Description -->
+            <div>
+                <label for="{{ form.description.id_for_label }}" class="block text-xs font-semibold mb-2 text-adw-main">
+                    Description du projet
+                </label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                <p class="mt-1.5 text-xs text-adw-error">{{ form.description.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Chef de projet (Tous les droits sur ce projet) -->
+            <div>
+                <label for="{{ form.manager.id_for_label }}" class="block text-xs font-semibold mb-2 text-adw-main flex items-center justify-between">
+                    <span class="flex items-center gap-1.5">
+                        <i class="ph-bold ph-shield-star text-adw-accent"></i>
+                        Chef de projet (Tous les droits sur ce projet)
+                    </span>
+                    <span class="text-[10px] text-adw-muted font-normal">Optionnel</span>
+                </label>
+                {{ form.manager }}
+                {% if form.manager.errors %}
+                <p class="mt-1.5 text-xs text-adw-error">{{ form.manager.errors.0 }}</p>
+                {% endif %}
+                <p class="mt-1 text-[11px] text-adw-muted">Le chef de projet a tous les droits d'administration, de modification et d'ajout sur ce projet.</p>
+            </div>
+
+            <!-- Membres assignés - Liste Déroulante Adwaita Multi-sélection -->
+            <div class="relative" id="members-dropdown-container">
+                <label class="block text-xs font-semibold mb-2 text-adw-main">
+                    Membres de l'équipe affectés
+                </label>
+
+                <!-- Bouton déclencheur de la liste déroulante -->
+                <button type="button" 
+                        id="members-dropdown-btn"
+                        onclick="toggleMembersDropdown()"
+                        class="w-full px-4 py-3 rounded-2xl text-left text-sm flex items-center justify-between adw-input cursor-pointer focus:ring-2 focus:ring-blue-500/40">
+                    <span id="members-placeholder" class="text-adw-muted text-xs">
+                        Sélectionner les membres à affecter...
+                    </span>
+                    <i id="members-chevron" class="ph ph-caret-down text-xs text-adw-muted transition-transform duration-200"></i>
+                </button>
+
+                <!-- Badges des membres sélectionnés -->
+                <div id="selected-badges-container" class="flex flex-wrap gap-2 mt-2.5"></div>
+
+                <!-- Menu déroulant -->
+                <div id="members-dropdown-menu" 
+                     class="hidden absolute left-0 right-0 mt-2 rounded-2xl p-2 z-50 adw-dropdown animate-in fade-in zoom-in-95 duration-100 max-h-72 overflow-y-auto">
+                    
+                    <!-- Recherche rapide -->
+                    <div class="p-1 mb-2">
+                        <div class="relative">
+                            <input type="text" 
+                                   id="members-search" 
+                                   placeholder="Rechercher un membre..." 
+                                   oninput="filterMembers()"
+                                   class="w-full px-3 py-2 pl-8 rounded-xl text-xs adw-input">
+                            <i class="ph ph-magnifying-glass absolute left-2.5 top-2.5 text-adw-muted text-xs"></i>
+                        </div>
+                    </div>
+
+                    <!-- Liste des utilisateurs -->
+                    <div class="space-y-1" id="members-list">
+                        {% for choice in form.members %}
+                        <label class="member-item flex items-center justify-between p-2.5 rounded-xl cursor-pointer hover:bg-[var(--surface-hover)] transition-colors"
+                               data-label="{{ choice.choice_label|lower }}">
+                            <div class="flex items-center gap-3">
+                                <span class="w-7 h-7 rounded-full border flex items-center justify-center text-xs font-semibold adw-user-avatar">
+                                    {{ choice.choice_label|first|upper }}
+                                </span>
+                                <span class="text-xs font-medium text-adw-main">{{ choice.choice_label }}</span>
+                            </div>
+                            <input type="checkbox" 
+                                   name="{{ form.members.html_name }}" 
+                                   value="{{ choice.data.value }}" 
+                                   {% if choice.data.selected %}checked{% endif %}
+                                   onchange="updateSelectedBadges()"
+                                   class="member-checkbox w-4 h-4 rounded-lg accent-[var(--accent)] cursor-pointer">
+                        </label>
+                        {% empty %}
+                        <div class="p-4 text-center text-xs text-adw-muted">
+                            Aucun utilisateur actif trouvé.
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                {% if form.members.errors %}
+                <p class="mt-1.5 text-xs text-adw-error">{{ form.members.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Boutons de soumission -->
+            <div class="pt-4 flex items-center justify-end gap-3 border-t border-[var(--border)]">
+                {% if is_edit %}
+                <a href="{% url 'projects:project_detail' slug=project.slug %}" class="px-5 py-2.5 rounded-2xl text-xs font-semibold text-adw-muted hover:text-adw-main hover:bg-[var(--surface-hover)] transition-colors">
+                    Annuler
+                </a>
+                {% else %}
+                <a href="{% url 'home' %}" class="px-5 py-2.5 rounded-2xl text-xs font-semibold text-adw-muted hover:text-adw-main hover:bg-[var(--surface-hover)] transition-colors">
+                    Annuler
+                </a>
+                {% endif %}
+                <button type="submit" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer">
+                    <i class="ph-bold ph-check"></i>
+                    <span>{{ button_label|default:"Enregistrer" }}</span>
+                </button>
+            </div>
+
+        </form>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function toggleMembersDropdown() {
+        const menu = document.getElementById('members-dropdown-menu');
+        const chevron = document.getElementById('members-chevron');
+        if (!menu) return;
+        const isHidden = menu.classList.contains('hidden');
+        if (isHidden) {
+            menu.classList.remove('hidden');
+            if (chevron) chevron.classList.add('rotate-180');
+            const searchInput = document.getElementById('members-search');
+            if (searchInput) searchInput.focus();
+        } else {
+            menu.classList.add('hidden');
+            if (chevron) chevron.classList.remove('rotate-180');
+        }
+    }
+
+    function filterMembers() {
+        const query = document.getElementById('members-search').value.toLowerCase().trim();
+        const items = document.querySelectorAll('.member-item');
+        items.forEach(item => {
+            const label = item.getAttribute('data-label') || '';
+            if (label.includes(query)) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    function updateSelectedBadges() {
+        const checkboxes = document.querySelectorAll('.member-checkbox');
+        const container = document.getElementById('selected-badges-container');
+        const placeholder = document.getElementById('members-placeholder');
+        container.innerHTML = '';
+
+        let count = 0;
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                count++;
+                const parent = cb.closest('.member-item');
+                const label = parent.querySelector('.text-adw-main').innerText;
+                const value = cb.value;
+
+                const badge = document.createElement('div');
+                badge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-medium adw-chip animate-in fade-in duration-150';
+                badge.innerHTML = `
+                    <span>${label}</span>
+                    <button type="button" onclick="removeMember('${value}')" class="text-xs hover:opacity-75 focus:outline-none cursor-pointer">
+                        <i class="ph-bold ph-x text-[10px]"></i>
+                    </button>
+                `;
+                container.appendChild(badge);
+            }
+        });
+
+        if (count === 0) {
+            placeholder.innerText = 'Sélectionner les membres à affecter...';
+            placeholder.classList.add('text-adw-muted');
+        } else {
+            placeholder.innerText = `${count} membre${count > 1 ? 's' : ''} sélectionné${count > 1 ? 's' : ''}`;
+            placeholder.classList.remove('text-adw-muted');
+        }
+    }
+
+    function removeMember(value) {
+        const cb = document.querySelector(`.member-checkbox[value="${value}"]`);
+        if (cb) {
+            cb.checked = false;
+            updateSelectedBadges();
+        }
+    }
+
+    // Fermeture au clic à l'extérieur
+    document.addEventListener('click', function(event) {
+        const container = document.getElementById('members-dropdown-container');
+        const menu = document.getElementById('members-dropdown-menu');
+        const chevron = document.getElementById('members-chevron');
+        if (container && menu && !container.contains(event.target)) {
+            menu.classList.add('hidden');
+            if (chevron) chevron.classList.remove('rotate-180');
+        }
+    });
+
+    // Initialisation au chargement de la page
+    document.addEventListener('DOMContentLoaded', updateSelectedBadges);
+</script>
+{% endblock %}
