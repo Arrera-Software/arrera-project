@@ -1,49 +1,50 @@
+import json
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.core.exceptions import PermissionDenied
-from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-import json
+from django.core.exceptions import PermissionDenied
+from django.contrib import messages
+from django.utils import timezone
 from .models import Project, SubProject, KanbanColumn, Task, ProjectCredential, ProjectResource
 from .forms import ProjectForm, SubProjectForm, TaskForm, ProjectCredentialForm, ProjectResourceForm
 
 
-def superuser_required(view_func):
-    """Décorateur strict : bloque immédiatement les non-administrateurs avec une erreur 403."""
-    def wrapper(request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return redirect('login')
-        if not request.user.is_superuser:
-            raise PermissionDenied("Seuls les administrateurs ont l'autorisation d'effectuer cette action.")
-        return view_func(request, *args, **kwargs)
-    return wrapper
-
-
 def check_project_access(user, project):
-    """Vérifie si l'utilisateur a le droit d'accéder au projet (admin, chef de projet ou membre assigné)."""
+    """
+    Vérifie si l'utilisateur a le droit d'accéder au projet.
+    - Superutilisateur (Admin) : OUI
+    - Chef de projet assigné : OUI
+    - Membre assigné au projet : OUI
+    - Autre utilisateur : NON
+    """
     if not user.is_authenticated:
         return False
     if user.is_superuser:
         return True
-    if project.manager_id and project.manager_id == user.id:
+    if project.manager_id == user.id:
         return True
-    return project.members.filter(id=user.id).exists()
+    if project.members.filter(id=user.id).exists():
+        return True
+    return False
 
 
 def is_project_manager_or_admin(user, project):
-    """Vérifie si l'utilisateur est administrateur ou chef de ce projet (tous les droits sur le projet)."""
+    """Vérifie si l'utilisateur est administrateur ou chef de ce projet (tous les droits de gestion et suppression)."""
     if not user.is_authenticated:
         return False
     if user.is_superuser:
         return True
-    return bool(project.manager_id and project.manager_id == user.id)
+    if project.manager_id == user.id:
+        return True
+    return False
 
 
 @login_required
-@superuser_required
 def project_create_view(request):
-    """Création d'un nouveau projet principal (réservé à l'administrateur)."""
+    """Création d'un nouveau projet (réservé exclusivement à l'administrateur superutilisateur)."""
+    if not request.user.is_superuser:
+        raise PermissionDenied("Seul l'administrateur système peut créer de nouveaux projets.")
+
     if request.method == 'POST':
         form = ProjectForm(request.POST)
         if form.is_valid():
@@ -67,7 +68,7 @@ def project_create_view(request):
     else:
         form = ProjectForm()
 
-    return render(request, 'projects/project_form.html', {
+    return render(request, 'projects/project_form.html', {\
         'form': form,
         'action_title': "Nouveau Projet",
         'button_label': "Créer le Projet",
@@ -100,6 +101,39 @@ def project_edit_view(request, slug):
         'is_edit': True,
         'project': project,
     })
+
+
+@login_required
+@require_POST
+def project_delete_view(request, slug):
+    """
+    Suppression définitive d'un projet complet.
+    Strictement réservé à l'Administrateur système (superutilisateur).
+    Nécessite une double validation (nom du projet saisi à l'identique).
+    """
+    if not request.user.is_superuser:
+        raise PermissionDenied("Seul un administrateur système a l'autorisation de supprimer un projet complet.")
+
+    project = get_object_or_404(Project, slug=slug)
+    confirm_name = request.POST.get('confirm_project_name', '').strip()
+
+    if confirm_name != project.name:
+        messages.error(request, "La confirmation a échoué : le nom du projet saisi ne correspond pas exactement.")
+        return redirect('projects:project_edit', slug=project.slug)
+
+    project_name = project.name
+
+    # Supprimer les fichiers physiques attachés à l'ensemble du projet
+    for res in project.resources.all():
+        if res.file:
+            try:
+                res.file.delete(save=False)
+            except Exception:
+                pass
+
+    project.delete()
+    messages.success(request, f"Le projet « {project_name} » et l'ensemble de ses données ont été définitivement supprimés.")
+    return redirect('home')
 
 
 @login_required
@@ -178,45 +212,49 @@ def subproject_detail_view(request, project_slug, subproject_slug):
     columns = subproject.columns.prefetch_related('tasks__assigned_to').all()
     credentials = subproject.credentials.all()
     
-    # Documents / Fichiers du sous-projet + documents globaux du projet parent
+    # Documents
     subproject_resources = subproject.resources.all()
     parent_resources = project.resources.filter(subproject__isnull=True)
-    resources_count = subproject_resources.count() + parent_resources.count()
-
+    
     task_form = TaskForm(subproject=subproject)
     credential_form = ProjectCredentialForm()
     resource_form = ProjectResourceForm()
 
-    active_tab = request.GET.get('tab', 'general')
-    
-    all_tasks = subproject.tasks.select_related('column', 'assigned_to').all()
-    total_tasks_count = all_tasks.count()
-    personal_tasks_count = all_tasks.filter(assigned_to=request.user).count()
+    is_admin = is_project_manager_or_admin(request.user, project)
+
+    # Récupérer les sous-projets frères pour la navigation rapide
+    sibling_subprojects = project.subprojects.all()
+
+    # Compteurs pour les badges d'onglets
+    all_sub_tasks = Task.objects.filter(column__subproject=subproject).select_related('assigned_to', 'column')
+    total_tasks_count = all_sub_tasks.count()
+    personal_tasks_count = all_sub_tasks.filter(assigned_to=request.user).count()
+    resources_count = subproject_resources.count()
     credentials_count = credentials.count()
 
-    # Données pour le calendrier Gantt
-    tasks_gantt_list = []
-    for t in all_tasks:
-        s_date = t.start_date or t.created_at.date()
-        d_date = t.due_date or s_date
-        tasks_gantt_list.append({
+    # Préparation des données JSON optimisées pour le moteur JavaScript du Gantt
+    today = timezone.localdate()
+    tasks_gantt_data = []
+    for t in all_sub_tasks:
+        start_d = t.start_date or (t.due_date if t.due_date else today)
+        due_d = t.due_date or start_d
+        
+        assigned_name = t.assigned_to.first_name if (t.assigned_to and t.assigned_to.first_name) else (t.assigned_to.username if t.assigned_to else "Non assigné")
+        assigned_avatar = (t.assigned_to.first_name[0] if t.assigned_to and t.assigned_to.first_name else (t.assigned_to.username[0] if t.assigned_to else "?")).upper()
+
+        tasks_gantt_data.append({
             'id': t.id,
             'title': t.title,
-            'description': t.description or '',
+            'column_id': t.column_id,
             'column_name': t.column.name,
-            'column_id': t.column.id,
             'priority': t.priority,
-            'priority_label': t.get_priority_display(),
-            'start_date': s_date.isoformat(),
-            'due_date': t.due_date.isoformat() if t.due_date else '',
+            'priority_display': t.get_priority_display(),
+            'start_date': start_d.strftime('%Y-%m-%d'),
+            'due_date': due_d.strftime('%Y-%m-%d') if t.due_date else '',
             'has_due_date': bool(t.due_date),
-            'effective_end_date': d_date.isoformat(),
-            'assigned_name': t.assigned_to.full_name if t.assigned_to else (t.assigned_to.username if t.assigned_to else 'Non assigné'),
-            'assigned_avatar': (t.assigned_to.first_name[:1] if t.assigned_to and t.assigned_to.first_name else (t.assigned_to.username[:1].upper() if t.assigned_to else '?')),
+            'assigned_name': assigned_name,
+            'assigned_avatar': assigned_avatar,
         })
-
-    sibling_subprojects = project.subprojects.all()
-    is_admin = is_project_manager_or_admin(request.user, project)
 
     return render(request, 'projects/subproject_detail.html', {
         'project': project,
@@ -226,17 +264,44 @@ def subproject_detail_view(request, project_slug, subproject_slug):
         'credentials': credentials,
         'subproject_resources': subproject_resources,
         'parent_resources': parent_resources,
-        'resources_count': resources_count,
         'task_form': task_form,
         'credential_form': credential_form,
         'resource_form': resource_form,
-        'active_tab': active_tab,
+        'is_admin': is_admin,
         'total_tasks_count': total_tasks_count,
         'personal_tasks_count': personal_tasks_count,
+        'resources_count': resources_count,
         'credentials_count': credentials_count,
-        'tasks_gantt_json': json.dumps(tasks_gantt_list),
-        'is_admin': is_admin,
+        'tasks_gantt_json': json.dumps(tasks_gantt_data),
+        'active_tab': request.GET.get('tab', 'general'),
     })
+
+
+@login_required
+@require_POST
+def subproject_delete_view(request, project_slug, subproject_slug):
+    """
+    Suppression d'un sous-projet.
+    Strictement réservé au Chef de Projet ou à l'Administrateur.
+    """
+    project = get_object_or_404(Project, slug=project_slug)
+    if not is_project_manager_or_admin(request.user, project):
+        raise PermissionDenied("Seul le chef de projet ou l'administrateur a l'autorisation de supprimer ce sous-projet.")
+
+    subproject = get_object_or_404(SubProject, project=project, slug=subproject_slug)
+    subproject_name = subproject.name
+
+    # Supprimer les fichiers physiques associés au sous-projet
+    for res in subproject.resources.all():
+        if res.file:
+            try:
+                res.file.delete(save=False)
+            except Exception:
+                pass
+
+    subproject.delete()
+    messages.success(request, f"Le sous-projet « {subproject_name} » a été supprimé.")
+    return redirect('projects:project_detail', slug=project.slug)
 
 
 @login_required
@@ -248,12 +313,13 @@ def task_create_view(request, project_slug, subproject_slug):
         raise PermissionDenied("Accès refusé.")
 
     subproject = get_object_or_404(SubProject, project=project, slug=subproject_slug)
+
     form = TaskForm(request.POST, subproject=subproject)
     if form.is_valid():
         task = form.save(commit=False)
-        task.subproject = subproject
+        task.created_by = request.user
         task.save()
-        messages.success(request, f"Tâche « {task.title} » ajoutée.")
+        messages.success(request, f"Tâche « {task.title} » ajoutée avec succès.")
     else:
         messages.error(request, "Erreur lors de la création de la tâche.")
 
@@ -264,17 +330,19 @@ def task_create_view(request, project_slug, subproject_slug):
 @login_required
 @require_POST
 def task_move_view(request, task_id):
-    """Déplacement d'une tâche vers une autre colonne."""
+    """Déplacement d'une tâche d'une colonne Kanban à une autre (drag-and-drop ou sélecteur)."""
     task = get_object_or_404(Task, id=task_id)
-    if not check_project_access(request.user, task.subproject.project):
-        return JsonResponse({'error': 'Permission denied'}, status=403)
+    project = task.column.subproject.project
 
-    target_column_id = request.POST.get('column_id')
-    column = get_object_or_404(KanbanColumn, id=target_column_id, subproject=task.subproject)
-    task.column = column
+    if not check_project_access(request.user, project):
+        raise PermissionDenied("Accès refusé.")
+
+    column_id = request.POST.get('column_id')
+    new_column = get_object_or_404(KanbanColumn, id=column_id, subproject=task.column.subproject)
+    task.column = new_column
     task.save()
 
-    return JsonResponse({'success': True, 'task_id': task.id, 'column_id': column.id})
+    return redirect('projects:subproject_detail', project_slug=project.slug, subproject_slug=task.column.subproject.slug)
 
 
 @login_required
@@ -282,8 +350,9 @@ def task_move_view(request, task_id):
 def task_delete_view(request, task_id):
     """Suppression d'une tâche."""
     task = get_object_or_404(Task, id=task_id)
-    subproject = task.subproject
+    subproject = task.column.subproject
     project = subproject.project
+
     if not check_project_access(request.user, project):
         raise PermissionDenied("Accès refusé.")
 
@@ -296,18 +365,19 @@ def task_delete_view(request, task_id):
 @login_required
 @require_POST
 def credential_create_view(request, project_slug, subproject_slug):
-    """Ajout d'un identifiant / mot de passe dans le coffre-fort du sous-projet."""
+    """Ajout d'un identifiant / mot de passe dans le sous-projet."""
     project = get_object_or_404(Project, slug=project_slug)
     if not check_project_access(request.user, project):
         raise PermissionDenied("Accès refusé.")
 
     subproject = get_object_or_404(SubProject, project=project, slug=subproject_slug)
+
     form = ProjectCredentialForm(request.POST)
     if form.is_valid():
-        credential = form.save(commit=False)
-        credential.subproject = subproject
-        credential.save()
-        messages.success(request, f"Identifiant « {credential.title} » enregistré.")
+        cred = form.save(commit=False)
+        cred.subproject = subproject
+        cred.save()
+        messages.success(request, f"Accès « {cred.title} » enregistré dans le coffre-fort.")
     else:
         messages.error(request, "Erreur lors de l'enregistrement de l'accès.")
 
@@ -317,14 +387,15 @@ def credential_create_view(request, project_slug, subproject_slug):
 @login_required
 @require_POST
 def credential_delete_view(request, credential_id):
-    """Suppression d'un mot de passe du coffre-fort."""
-    credential = get_object_or_404(ProjectCredential, id=credential_id)
-    subproject = credential.subproject
+    """Suppression d'un mot de passe / accès."""
+    cred = get_object_or_404(ProjectCredential, id=credential_id)
+    subproject = cred.subproject
     project = subproject.project
+
     if not check_project_access(request.user, project):
         raise PermissionDenied("Accès refusé.")
 
-    credential.delete()
+    cred.delete()
     messages.success(request, "Accès supprimé du coffre-fort.")
     return redirect(f"/projets/{project.slug}/{subproject.slug}/?tab=passwords")
 
@@ -332,7 +403,7 @@ def credential_delete_view(request, credential_id):
 @login_required
 @require_POST
 def resource_create_view(request, project_slug, subproject_slug=None):
-    """Ajout ou téléversement d'un document ou fichier (attaché à un projet ou à un sous-projet)."""
+    """Ajout d'un document ou fichier (niveau projet global ou niveau sous-projet)."""
     project = get_object_or_404(Project, slug=project_slug)
     if not check_project_access(request.user, project):
         raise PermissionDenied("Accès refusé.")
@@ -343,16 +414,24 @@ def resource_create_view(request, project_slug, subproject_slug=None):
 
     form = ProjectResourceForm(request.POST, request.FILES)
     if form.is_valid():
-        resource = form.save(commit=False)
-        resource.project = project
-        resource.subproject = subproject
-        resource.created_by = request.user
-        resource.save()
-        messages.success(request, f"Fichier / Document « {resource.title} » ajouté avec succès.")
+        res = form.save(commit=False)
+        res.project = project
+        res.subproject = subproject
+        res.uploaded_by = request.user
+        
+        # Si aucun titre fourni et qu'un fichier est présent, on utilise le nom du fichier
+        if not res.title:
+            if res.file:
+                res.title = res.file.name
+            elif res.url:
+                res.title = res.url
+            else:
+                res.title = "Document sans titre"
+
+        res.save()
+        messages.success(request, f"Document « {res.title} » ajouté avec succès.")
     else:
-        for field, errs in form.errors.items():
-            for err in errs:
-                messages.error(request, f"{err}")
+        messages.error(request, "Erreur lors de l'enregistrement du document / fichier.")
 
     if subproject:
         return redirect(f"/projets/{project.slug}/{subproject.slug}/?tab=resources")
@@ -362,14 +441,17 @@ def resource_create_view(request, project_slug, subproject_slug=None):
 @login_required
 @require_POST
 def resource_delete_view(request, resource_id):
-    """Suppression d'un fichier ou document."""
+    """
+    Suppression d'un fichier ou document.
+    Strictement réservé au Chef de Projet ou à l'Administrateur.
+    """
     resource = get_object_or_404(ProjectResource, id=resource_id)
     project = resource.project
-    if not check_project_access(request.user, project):
-        raise PermissionDenied("Accès refusé.")
+    if not is_project_manager_or_admin(request.user, project):
+        raise PermissionDenied("Seul le chef de projet ou l'administrateur a l'autorisation de supprimer ce fichier ou document.")
 
     subproject = resource.subproject
-    # Si c'est un fichier physique, on le supprime également du disque
+    # Si c'est un fichier physique, suppression propre du disque
     if resource.file:
         try:
             resource.file.delete(save=False)
@@ -377,7 +459,7 @@ def resource_delete_view(request, resource_id):
             pass
 
     resource.delete()
-    messages.success(request, "Fichier / Document supprimé.")
+    messages.success(request, "Document / Fichier supprimé.")
 
     if subproject:
         return redirect(f"/projets/{project.slug}/{subproject.slug}/?tab=resources")

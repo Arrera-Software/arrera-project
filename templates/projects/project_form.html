@@ -3,10 +3,10 @@
 {% block title %}{{ action_title }} • Arrera Project{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 flex-1">
+<div class="max-w-3xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 flex-1 space-y-8">
 
     <!-- Bouton retour -->
-    <div class="mb-6">
+    <div>
         {% if is_edit %}
         <a href="{% url 'projects:project_detail' slug=project.slug %}" class="inline-flex items-center gap-2 text-xs font-medium text-adw-muted hover:text-adw-main transition-colors">
             <i class="ph ph-arrow-left text-sm"></i>
@@ -142,7 +142,7 @@
                                    onchange="updateSelectedBadges()"
                                    class="member-checkbox w-4 h-4 rounded-lg accent-[var(--accent)] cursor-pointer">
                         </label>
-                        {% empty %}
+                        {% empty %}:
                         <div class="p-4 text-center text-xs text-adw-muted">
                             Aucun utilisateur actif trouvé.
                         </div>
@@ -175,11 +175,160 @@
         </form>
 
     </div>
+
+    <!-- ================================================================= -->
+    <!-- ZONE DE DANGER : SUPPRESSION DÉFINITIVE DU PROJET (ADMIN ONLY)   -->
+    <!-- ================================================================= -->
+    {% if is_edit and request.user.is_superuser %}
+    <div class="rounded-3xl p-8 border border-rose-500/30 bg-rose-500/5 dark:bg-rose-950/10">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+                <h3 class="text-base font-bold text-rose-500 flex items-center gap-2">
+                    <i class="ph-bold ph-warning-octagon text-lg"></i>
+                    <span>Zone de danger : Supprimer le projet</span>
+                </h3>
+                <p class="text-xs text-adw-muted mt-1 max-w-xl leading-relaxed">
+                    Cette action est <strong>irréversible</strong>. Elle effacera définitivement le projet « <span class="text-adw-main font-semibold">{{ project.name }}</span> », l'ensemble de ses sous-projets, ses tâches, ses mots de passe et tous les fichiers hébergés sur le serveur.
+                </p>
+            </div>
+            <button type="button" 
+                    onclick="openModal('project-delete-modal')" 
+                    class="shrink-0 px-5 py-2.5 rounded-2xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2">
+                <i class="ph-bold ph-trash"></i>
+                <span>Supprimer le projet...</span>
+            </button>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
+
+<!-- ===================================================================== -->
+<!-- POPUP : MODAL DOUBLE VALIDATION SUPPRESSION PROJET (ADMIN ONLY)       -->
+<!-- ===================================================================== -->
+{% if is_edit and request.user.is_superuser %}
+<div id="project-delete-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-150">
+    <div class="w-full max-w-lg rounded-3xl p-7 adw-card border border-rose-500/40 shadow-2xl relative" onclick="event.stopPropagation()">
+        
+        <!-- En-tête modal -->
+        <div class="flex items-center justify-between mb-5 pb-3 border-b border-[var(--border)]">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-2xl flex items-center justify-center text-white bg-rose-600 shadow-sm">
+                    <i class="ph-bold ph-warning-octagon text-lg"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-adw-main">Confirmation de suppression</h3>
+                    <span class="text-[10px] text-rose-500 font-bold uppercase tracking-wider">Action critique administrateur</span>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('project-delete-modal')" class="text-adw-muted hover:text-adw-main cursor-pointer p-1">
+                <i class="ph-bold ph-x text-base"></i>
+            </button>
+        </div>
+
+        <form method="post" action="{% url 'projects:project_delete' slug=project.slug %}" id="delete-project-form" class="space-y-5">
+            {% csrf_token %}
+
+            <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-adw-main space-y-2">
+                <p class="font-bold text-rose-500">
+                    Êtes-vous absolument certain de vouloir supprimer ce projet ?
+                </p>
+                <p class="text-adw-muted text-[11px] leading-relaxed">
+                    Vous êtes sur le point de détruire le projet <strong>« {{ project.name }} »</strong> ainsi que tous ses sous-projets, ses tableaux Kanban, ses documents et ses identifiants secrets.
+                </p>
+            </div>
+
+            <!-- Étape 1 : Première validation (Case à cocher d'avertissement) -->
+            <div class="p-3.5 rounded-2xl adw-card-subtle border border-[var(--border)]">
+                <label class="flex items-start gap-3 cursor-pointer select-none">
+                    <input type="checkbox" 
+                           id="check-confirm-step1" 
+                           onchange="validateDeleteInputs()" 
+                           class="w-4 h-4 rounded mt-0.5 accent-rose-600 cursor-pointer">
+                    <span class="text-xs text-adw-main leading-relaxed font-medium">
+                        <strong>1ère validation :</strong> Je confirme comprendre que cette suppression détruira définitivement toutes les données du projet et qu'aucun retour en arrière n'est possible.
+                    </span>
+                </label>
+            </div>
+
+            <!-- Étape 2 : Deuxième validation (Saisie du nom exact du projet) -->
+            <div>
+                <label for="id_confirm_project_name" class="block text-xs font-semibold mb-1.5 text-adw-main">
+                    <strong>2ème validation :</strong> Tapez le nom exact du projet <code class="px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 text-rose-500 font-mono font-bold">{{ project.name }}</code> pour confirmer :
+                </label>
+                <input type="text" 
+                       name="confirm_project_name" 
+                       id="id_confirm_project_name" 
+                       autocomplete="off"
+                       placeholder="{{ project.name }}" 
+                       oninput="validateDeleteInputs()"
+                       class="w-full px-4 py-2.5 rounded-2xl text-xs adw-input font-medium focus:ring-2 focus:ring-rose-500/40">
+            </div>
+
+            <!-- Actions Modal -->
+            <div class="pt-4 flex items-center justify-end gap-3 border-t border-[var(--border)]">
+                <button type="button" 
+                        onclick="closeModal('project-delete-modal')" 
+                        class="px-4 py-2.5 rounded-2xl text-xs font-semibold text-adw-muted hover:text-adw-main cursor-pointer">
+                    Annuler
+                </button>
+                <button type="submit" 
+                        id="btn-confirm-project-delete" 
+                        disabled 
+                        class="px-5 py-2.5 rounded-2xl text-xs font-bold text-white bg-slate-500 opacity-40 cursor-not-allowed transition-all flex items-center gap-2">
+                    <i class="ph-bold ph-trash"></i>
+                    <span>Détruire définitivement le projet</span>
+                </button>
+            </div>
+        </form>
+
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+    const expectedProjectName = "{{ project.name|escapejs }}";
+
+    function validateDeleteInputs() {
+        const checkStep1 = document.getElementById('check-confirm-step1');
+        const inputStep2 = document.getElementById('id_confirm_project_name');
+        const btnDelete = document.getElementById('btn-confirm-project-delete');
+        if (!checkStep1 || !inputStep2 || !btnDelete) return;
+
+        const isChecked = checkStep1.checked;
+        const isNameExact = (inputStep2.value.trim() === expectedProjectName);
+
+        if (isChecked && isNameExact) {
+            btnDelete.disabled = false;
+            btnDelete.className = "px-5 py-2.5 rounded-2xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-md hover:scale-[1.02] cursor-pointer transition-all flex items-center gap-2";
+        } else {
+            btnDelete.disabled = true;
+            btnDelete.className = "px-5 py-2.5 rounded-2xl text-xs font-bold text-white bg-slate-500 opacity-40 cursor-not-allowed transition-all flex items-center gap-2";
+        }
+    }
+
+    function openModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('hidden');
+            validateDeleteInputs();
+        }
+    }
+
+    function closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('hidden');
+            const checkStep1 = document.getElementById('check-confirm-step1');
+            const inputStep2 = document.getElementById('id_confirm_project_name');
+            if (checkStep1) checkStep1.checked = false;
+            if (inputStep2) inputStep2.value = '';
+            validateDeleteInputs();
+        }
+    }
+
     function toggleMembersDropdown() {
         const menu = document.getElementById('members-dropdown-menu');
         const chevron = document.getElementById('members-chevron');
@@ -213,6 +362,7 @@
         const checkboxes = document.querySelectorAll('.member-checkbox');
         const container = document.getElementById('selected-badges-container');
         const placeholder = document.getElementById('members-placeholder');
+        if (!container || !placeholder) return;
         container.innerHTML = '';
 
         let count = 0;
@@ -252,18 +402,19 @@
         }
     }
 
-    // Fermeture au clic à l'extérieur
-    document.addEventListener('click', function(event) {
-        const container = document.getElementById('members-dropdown-container');
-        const menu = document.getElementById('members-dropdown-menu');
-        const chevron = document.getElementById('members-chevron');
-        if (container && menu && !container.contains(event.target)) {
-            menu.classList.add('hidden');
-            if (chevron) chevron.classList.remove('rotate-180');
-        }
-    });
+    document.addEventListener('DOMContentLoaded', () => {
+        updateSelectedBadges();
 
-    // Initialisation au chargement de la page
-    document.addEventListener('DOMContentLoaded', updateSelectedBadges);
+        // Fermeture dropdown au clic extérieur
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('members-dropdown-container');
+            const menu = document.getElementById('members-dropdown-menu');
+            const chevron = document.getElementById('members-chevron');
+            if (dropdown && !dropdown.contains(e.target) && menu && !menu.classList.contains('hidden')) {
+                menu.classList.add('hidden');
+                if (chevron) chevron.classList.remove('rotate-180');
+            }
+        });
+    });
 </script>
 {% endblock %}
