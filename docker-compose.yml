@@ -21,9 +21,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: arrera_project_web
-    # Serveur de production. collectstatic prépare les fichiers statiques (WhiteNoise).
+    # Migration auto de la base de données et collecte des fichiers statiques WhiteNoise
     command: >
-      sh -c "python manage.py collectstatic --noinput &&
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
              gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
     # Le code source est copié dans l'image (pas de montage de volume en production).
     # Seuls les médias téléversés sont persistés.

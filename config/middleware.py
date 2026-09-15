@@ -5,19 +5,13 @@ Ajoute une Content-Security-Policy et quelques en-têtes de durcissement à
 toutes les réponses. La CSP restreint les origines de scripts/styles aux seuls
 CDN utilisés et bloque les plugins, l'encadrement (clickjacking) et le
 détournement de <base>.
-
-Remarque : les templates actuels reposent sur des blocs <script> inline et sur
-Tailwind Play CDN (qui utilise eval), d'où la présence de 'unsafe-inline' /
-'unsafe-eval' pour script-src. La CSP reste une défense en profondeur (elle
-verrouille object-src, base-uri, frame-ancestors, form-action, etc.) ; la
-protection principale contre le XSS reste l'échappement côté rendu.
 """
 
 CSP_POLICY = "; ".join([
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com data:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
+    "font-src 'self' https://fonts.gstatic.com https://unpkg.com data:",
     "img-src 'self' data:",
     "connect-src 'self'",
     "object-src 'none'",
