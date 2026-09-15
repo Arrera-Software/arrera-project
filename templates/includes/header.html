@@ -1,10 +1,17 @@
+{% load static %}
 <!-- Barre d'en-tête Adwaita HeaderBar -->
 <header class="border-b sticky top-0 z-40 adw-header">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <!-- Brand -->
+        <!-- Brand avec icône personnalisée propre (sans fond bleu) -->
         <a href="{% url 'home' %}" class="flex items-center gap-3 group">
-            <div class="w-9 h-9 rounded-2xl flex items-center justify-center text-white adw-logo-badge transition-all">
-                <i class="ph-bold ph-kanban text-lg"></i>
+            <div class="w-9 h-9 flex items-center justify-center transition-transform group-hover:scale-105">
+                <img src="{% static 'img/icon.svg' %}" 
+                     onerror="this.onerror=null; this.src='{% static 'img/icon.png' %}'; this.onerror=function(){ this.style.display='none'; document.getElementById('header-fallback-icon').style.display='flex'; };" 
+                     alt="Arrera Project" 
+                     class="w-full h-full object-contain">
+                <div id="header-fallback-icon" class="w-full h-full rounded-2xl items-center justify-center text-white adw-logo-badge hidden">
+                    <i class="ph-bold ph-kanban text-lg"></i>
+                </div>
             </div>
             <span class="font-semibold text-base tracking-tight text-adw-main">Arrera Project</span>
         </a>

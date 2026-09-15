@@ -4,7 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Arrera Software{% endblock %}</title>
+    <title>{% block title %}Arrera Project{% endblock %}</title>
+
+    <!-- Icône d'onglet (Favicon SVG & PNG fallback) -->
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/icon.svg' %}">
+    <link rel="alternate icon" type="image/png" href="{% static 'img/icon.png' %}">
+
     <!-- Tailwind CSS (Framework Utilitaires) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Phosphor Icons -->

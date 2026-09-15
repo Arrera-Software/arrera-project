@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Connexion • Arrera Project{% endblock %}
 
@@ -10,10 +11,16 @@
         
         <div class="rounded-3xl p-7 adw-card">
             
-            <!-- Titre Arrera Project -->
+            <!-- Titre & Logo Arrera Project (propre, sans conteneur bleu) -->
             <div class="flex items-center justify-center gap-3 mb-6">
-                <div class="w-9 h-9 rounded-2xl flex items-center justify-center text-white adw-logo-badge">
-                    <i class="ph-bold ph-kanban text-lg"></i>
+                <div class="w-10 h-10 flex items-center justify-center">
+                    <img src="{% static 'img/icon.svg' %}" 
+                         onerror="this.onerror=null; this.src='{% static 'img/icon.png' %}'; this.onerror=function(){ this.style.display='none'; document.getElementById('login-fallback-icon').style.display='flex'; };" 
+                         alt="Arrera Project" 
+                         class="w-full h-full object-contain">
+                    <div id="login-fallback-icon" class="w-full h-full rounded-2xl items-center justify-center text-white adw-logo-badge hidden">
+                        <i class="ph-bold ph-kanban text-lg"></i>
+                    </div>
                 </div>
                 <h1 class="text-xl font-bold tracking-tight text-adw-main">Arrera Project</h1>
             </div>
