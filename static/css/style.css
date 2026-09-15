@@ -1,0 +1,226 @@
+/* ==========================================================================
+   Arrera Software - Adwaita & Material Design 3 Dynamic Theme System
+   ========================================================================== */
+
+:root {
+    /* Mode Sombre par défaut (Adwaita Dark / M3) */
+    --bg-page: #121214;
+    --surface: #1e1e22;
+    --surface-hover: #28282e;
+    --surface-input: #28282e;
+    --surface-input-hover: #2d2d35;
+    --border: #2d2d34;
+    --border-subtle: #383842;
+    --text-main: #e1e1e6;
+    --text-muted: #868696;
+    --text-dim: #626272;
+    --accent: #3584e4;
+    --accent-hover: #2970cc;
+    --accent-active: #1c5bb3;
+    --accent-shadow: rgba(53, 132, 228, 0.25);
+    --avatar-bg: rgba(53, 132, 228, 0.2);
+    --avatar-border: rgba(53, 132, 228, 0.4);
+    --avatar-text: #62a0ea;
+    --shadow-card: rgba(0, 0, 0, 0.4);
+    
+    /* Messages & Alertes */
+    --error-bg: #3d181e;
+    --error-border: #7a2430;
+    --error-text: #fca5a5;
+    --error-icon: #f87171;
+    --success-bg: #163828;
+    --success-border: #1f6b47;
+    --success-text: #a7f3d0;
+    --success-icon: #34d399;
+}
+
+/* Mode Clair automatique si le navigateur/système est en thème clair (Adwaita Light) */
+@media (prefers-color-scheme: light) {
+    :root {
+        --bg-page: #f6f6f8;
+        --surface: #ffffff;
+        --surface-hover: #f0f0f4;
+        --surface-input: #f0f0f4;
+        --surface-input-hover: #e8e8ed;
+        --border: #dedee4;
+        --border-subtle: #d0d0da;
+        --text-main: #18181c;
+        --text-muted: #5e5e6e;
+        --text-dim: #8e8e9e;
+        --accent: #1c71d8;
+        --accent-hover: #175bb0;
+        --accent-active: #124587;
+        --accent-shadow: rgba(28, 113, 216, 0.2);
+        --avatar-bg: rgba(28, 113, 216, 0.12);
+        --avatar-border: rgba(28, 113, 216, 0.3);
+        --avatar-text: #1c71d8;
+        --shadow-card: rgba(0, 0, 0, 0.06);
+        --error-bg: #fdf2f2;
+        --error-border: #f8b4b4;
+        --error-text: #9b1c1c;
+        --error-icon: #e02424;
+        --success-bg: #f3faf7;
+        --success-border: #84e1bc;
+        --success-text: #03543f;
+        --success-icon: #0e9f6e;
+    }
+}
+
+/* ==========================================================================
+   Base & Typography
+   ========================================================================== */
+body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, Cantarell, sans-serif;
+    background-color: var(--bg-page);
+    color: var(--text-main);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+::selection {
+    background-color: var(--accent);
+    color: #ffffff;
+}
+
+/* ==========================================================================
+   Composants d'Interface Réutilisables
+   ========================================================================== */
+
+/* HeaderBar */
+.adw-header {
+    background-color: var(--surface);
+    border-color: var(--border);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.adw-logo-badge {
+    background-color: var(--accent);
+    box-shadow: 0 2px 8px var(--accent-shadow);
+}
+
+.adw-user-pill {
+    background-color: var(--surface-input);
+    border-color: var(--border-subtle);
+    color: var(--text-main);
+}
+
+.adw-user-avatar {
+    background-color: var(--avatar-bg);
+    border-color: var(--avatar-border);
+    color: var(--avatar-text);
+}
+
+/* Dropdown Menu */
+.adw-dropdown {
+    background-color: var(--surface);
+    border-color: var(--border);
+    box-shadow: 0 10px 25px var(--shadow-card);
+}
+
+.adw-dropdown-item {
+    color: var(--text-main);
+}
+
+.adw-dropdown-item:hover {
+    background-color: var(--surface-hover);
+}
+
+.adw-dropdown-item-danger {
+    color: var(--error-icon);
+}
+
+.adw-dropdown-item-danger:hover {
+    background-color: var(--error-bg);
+}
+
+/* Cards & Containers */
+.adw-card {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 16px var(--shadow-card);
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.adw-card-subtle {
+    background-color: var(--surface-input);
+    border-color: var(--border-subtle);
+    color: var(--text-muted);
+}
+
+/* Boutons */
+.adw-btn-primary {
+    background-color: var(--accent);
+    box-shadow: 0 4px 12px var(--accent-shadow);
+    color: #ffffff;
+    transition: all 0.15s ease-in-out;
+}
+
+.adw-btn-primary:hover {
+    background-color: var(--accent-hover);
+}
+
+.adw-btn-primary:active {
+    background-color: var(--accent-active);
+}
+
+/* Champs de formulaires */
+.adw-input {
+    background-color: var(--surface-input);
+    color: var(--text-main);
+    border: 1px solid transparent;
+    transition: all 0.15s ease-in-out;
+}
+
+.adw-input:hover {
+    background-color: var(--surface-input-hover);
+}
+
+.adw-input:focus {
+    border-color: var(--accent);
+    outline: none;
+}
+
+/* Typographie thématique */
+.text-adw-main {
+    color: var(--text-main);
+}
+
+.text-adw-muted {
+    color: var(--text-muted);
+}
+
+.text-adw-dim {
+    color: var(--text-dim);
+}
+
+.text-adw-accent {
+    color: var(--accent);
+}
+
+.text-adw-error {
+    color: var(--error-icon);
+}
+
+/* Footer */
+.adw-footer {
+    border-color: var(--border);
+    color: var(--text-dim);
+}
+
+/* Alertes & Notifications */
+.adw-alert-error {
+    background-color: var(--error-bg);
+    border-color: var(--error-border);
+    color: var(--error-text);
+}
+
+.adw-alert-success {
+    background-color: var(--success-bg);
+    border-color: var(--success-border);
+    color: var(--success-text);
+}
+
+.adw-alert-info {
+    background-color: var(--surface);
+    border-color: var(--border);
+    color: var(--text-main);
+}

@@ -36,12 +36,20 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Sécurité & Protection contre les attaques par force brute
+    'axes',
     # Apps du projet
     'accounts',
 ]
 
 # Modèle Utilisateur personnalisé
 AUTH_USER_MODEL = 'accounts.User'
+
+# Authentification stricte par e-mail & Axes brute-force
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
+    'accounts.backends.EmailAuthBackend',
+]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -51,6 +59,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Axes Middleware (doit être en fin de chaîne)
+    'axes.middleware.AxesMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -74,7 +84,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
-# Database configuration (PostgreSQL via env vars or SQLite fallback)
+# Database configuration (PostgreSQL via env vars ou SQLite fallback)
 DB_ENGINE = os.getenv('DB_ENGINE', 'django.db.backends.postgresql')
 DB_NAME = os.getenv('DB_NAME', 'arrera_db')
 DB_USER = os.getenv('DB_USER', 'arrera_user')
@@ -108,6 +118,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {'min_length': 8},
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -117,16 +128,38 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Redirections d'authentification
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = 'login'
+
+# --- Paramètres de Cybersécurité ---
+# Protection Force Brute (django-axes)
+AXES_USERNAME_FORM_FIELD = 'email'
+AXES_FAILURE_LIMIT = 5  # Bloque après 5 tentatives échouées
+AXES_COOLOFF_TIME = 15  # Blocage temporaire de 15 minutes (en minutes)
+AXES_RESET_ON_SUCCESS = True
+AXES_LOCKOUT_TEMPLATE = 'accounts/lockout.html'
+AXES_VERBOSE = True
+
+# Sécurité des Cookies & Sessions
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_AGE = 86400  # 24 heures
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+
 # Internationalization
 LANGUAGE_CODE = 'fr-fr'
-
 TIME_ZONE = 'Europe/Paris'
-
 USE_I18N = True
-
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
+# Static files
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [

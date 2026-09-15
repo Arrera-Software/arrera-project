@@ -1,0 +1,60 @@
+<!-- Barre d'en-tête Adwaita HeaderBar -->
+<header class="border-b sticky top-0 z-40 adw-header">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <!-- Brand -->
+        <a href="{% url 'home' %}" class="flex items-center gap-3 group">
+            <div class="w-9 h-9 rounded-2xl flex items-center justify-center text-white adw-logo-badge transition-all">
+                <i class="ph-bold ph-kanban text-lg"></i>
+            </div>
+            <span class="font-semibold text-base tracking-tight text-adw-main">Arrera Project</span>
+        </a>
+
+        <!-- Menu Utilisateur Déroulant -->
+        {% if user.is_authenticated %}
+        <div class="relative" id="user-menu-container">
+            <button type="button" 
+                    id="user-menu-button"
+                    onclick="toggleUserMenu()"
+                    class="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border adw-user-pill transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                <div class="w-7 h-7 rounded-full border flex items-center justify-center text-xs font-semibold adw-user-avatar">
+                    {{ user.first_name|first|default:user.username|first|upper }}
+                </div>
+                <div class="hidden sm:block text-left">
+                    <p class="text-xs font-medium leading-none text-adw-main">{{ user.full_name }}</p>
+                    <p class="text-[10px] leading-none mt-1 text-adw-muted">{{ user.email }}</p>
+                </div>
+                <i id="user-menu-chevron" class="ph ph-caret-down text-xs text-adw-muted transition-transform duration-200 ml-1"></i>
+            </button>
+
+            <!-- Dropdown -->
+            <div id="user-menu-dropdown" 
+                 class="hidden absolute right-0 mt-2 w-56 border rounded-2xl p-1.5 z-50 adw-dropdown animate-in fade-in zoom-in-95 duration-100">
+                
+                <div class="sm:hidden px-3 py-2 border-b border-[var(--border)] mb-1">
+                    <p class="text-xs font-semibold text-adw-main">{{ user.full_name }}</p>
+                    <p class="text-[10px] text-adw-muted truncate">{{ user.email }}</p>
+                </div>
+
+                {% if user.is_superuser %}
+                <a href="{% url 'admin:index' %}" 
+                   class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium adw-dropdown-item transition-colors">
+                    <i class="ph-bold ph-shield text-sm text-adw-accent"></i>
+                    <span>Administration Django</span>
+                </a>
+                <div class="my-1 border-t border-[var(--border)]"></div>
+                {% endif %}
+
+                <!-- Déconnexion -->
+                <form method="post" action="{% url 'logout' %}" class="w-full m-0 p-0">
+                    {% csrf_token %}
+                    <button type="submit" 
+                            class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium adw-dropdown-item-danger transition-colors text-left cursor-pointer">
+                        <i class="ph ph-sign-out text-sm"></i>
+                        <span>Se déconnecter</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</header>

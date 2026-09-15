@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block title %}Projets • Arrera Software{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
+    
+    <!-- Section Projets -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-xl font-bold tracking-tight text-adw-main">Mes Projets</h2>
+            <p class="text-xs mt-0.5 text-adw-muted">Liste des projets auxquels vous êtes affecté</p>
+        </div>
+        {% if user.is_superuser %}
+        <button class="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer">
+            <i class="ph-bold ph-plus"></i>
+            <span>Nouveau Projet</span>
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- Grille des projets -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="rounded-3xl p-8 text-center flex flex-col items-center justify-center adw-card">
+            <div class="w-12 h-12 rounded-2xl border flex items-center justify-center mb-3 adw-card-subtle">
+                <i class="ph ph-folder-simple text-2xl"></i>
+            </div>
+            <h3 class="text-sm font-semibold text-adw-main">Aucun projet initialisé</h3>
+            <p class="text-xs mt-1 max-w-xs text-adw-muted">Les projets assignés à votre compte apparaîtront ici.</p>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block title %}Accès Temporairement Bloqué • Arrera Project{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+        <div class="rounded-3xl p-8 text-center adw-card">
+            
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-6 adw-alert-error">
+                <i class="ph-bold ph-shield-warning text-3xl text-adw-error"></i>
+            </div>
+
+            <h1 class="text-2xl font-bold tracking-tight mb-2 text-adw-main">Sécurité Déclenchée</h1>
+            <p class="text-xs mb-6 text-adw-muted leading-relaxed">
+                Trop de tentatives de connexion infructueuses ont été détectées. Pour protéger votre compte, l'accès a été temporairement restreint.
+            </p>
+
+            <div class="p-4 rounded-2xl text-xs text-left mb-6 space-y-2 border adw-card-subtle">
+                <div class="flex items-center justify-between">
+                    <span class="text-adw-muted">Durée du verrouillage :</span>
+                    <span class="font-semibold text-adw-error">15 minutes</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-adw-muted">Statut :</span>
+                    <span class="text-green-500 font-medium flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        Système protégé
+                    </span>
+                </div>
+            </div>
+
+            <a href="{% url 'login' %}" class="inline-flex items-center justify-center gap-2 w-full py-3.5 px-4 rounded-2xl text-xs font-semibold adw-btn-primary">
+                <i class="ph ph-arrow-counter-clockwise"></i>
+                <span>Réessayer</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

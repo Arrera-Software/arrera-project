@@ -1,0 +1,88 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Arrera Software{% endblock %}</title>
+    <!-- Tailwind CSS (Framework Utilitaires) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Feuille de styles CSS externe Arrera Adwaita -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-screen antialiased flex flex-col">
+
+    {% if messages %}
+    <div class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-md">
+        {% for message in messages %}
+        <div class="flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border text-sm backdrop-blur-md {% if message.tags == 'error' %}adw-alert-error{% elif message.tags == 'success' %}adw-alert-success{% else %}adw-alert-info{% endif %}">
+            <i class="ph-bold {% if message.tags == 'error' %}ph-warning-circle text-adw-error{% elif message.tags == 'success' %}ph-check-circle text-green-500{% else %}ph-info text-adw-accent{% endif %} text-lg"></i>
+            <span class="flex-1">{{ message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- En-tête réutilisable -->
+    {% block header %}
+        {% if user.is_authenticated %}
+            {% include 'includes/header.html' %}
+        {% endif %}
+    {% endblock %}
+
+    <!-- Contenu Principal -->
+    <main class="flex-1 flex flex-col">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Pied de page réutilisable -->
+    {% block footer %}
+        {% if user.is_authenticated %}
+            {% include 'includes/footer.html' %}
+        {% endif %}
+    {% endblock %}
+
+    <!-- Script global pour le menu utilisateur -->
+    <script>
+        function toggleUserMenu() {
+            const menu = document.getElementById('user-menu-dropdown');
+            const chevron = document.getElementById('user-menu-chevron');
+            if (!menu) return;
+            const isHidden = menu.classList.contains('hidden');
+            if (isHidden) {
+                menu.classList.remove('hidden');
+                if (chevron) chevron.classList.add('rotate-180');
+            } else {
+                menu.classList.add('hidden');
+                if (chevron) chevron.classList.remove('rotate-180');
+            }
+        }
+
+        document.addEventListener('click', function(event) {
+            const container = document.getElementById('user-menu-container');
+            const menu = document.getElementById('user-menu-dropdown');
+            const chevron = document.getElementById('user-menu-chevron');
+            if (container && menu && !container.contains(event.target)) {
+                menu.classList.add('hidden');
+                if (chevron) chevron.classList.remove('rotate-180');
+            }
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                const menu = document.getElementById('user-menu-dropdown');
+                const chevron = document.getElementById('user-menu-chevron');
+                if (menu) {
+                    menu.classList.add('hidden');
+                    if (chevron) chevron.classList.remove('rotate-180');
+                }
+            }
+        });
+    </script>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

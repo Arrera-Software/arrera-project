@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+
+{% block title %}Connexion • Arrera Project{% endblock %}
+
+{% block content %}
+<div class="min-h-screen w-full flex flex-col items-center justify-center p-4">
+    
+    <!-- Carte de Connexion Adwaita / Material Design 3 Minimaliste -->
+    <div class="w-full max-w-[400px]">
+        
+        <div class="rounded-3xl p-7 adw-card">
+            
+            <!-- Titre Arrera Project -->
+            <div class="flex items-center justify-center gap-3 mb-6">
+                <div class="w-9 h-9 rounded-2xl flex items-center justify-center text-white adw-logo-badge">
+                    <i class="ph-bold ph-kanban text-lg"></i>
+                </div>
+                <h1 class="text-xl font-bold tracking-tight text-adw-main">Arrera Project</h1>
+            </div>
+
+            <form method="post" action="{% url 'login' %}" class="space-y-5">
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="p-3 rounded-2xl border text-xs flex items-center gap-3 adw-alert-error">
+                    <i class="ph-bold ph-warning-circle text-base shrink-0 text-adw-error"></i>
+                    <div>
+                        {% for error in form.non_field_errors %}
+                        <p>{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Adresse E-mail -->
+                <div>
+                    <label for="{{ form.email.id_for_label }}" class="block text-xs font-medium mb-1.5 ml-1 text-adw-muted">
+                        Adresse e-mail
+                    </label>
+                    <div class="relative">
+                        <input type="email" 
+                               name="{{ form.email.html_name }}" 
+                               id="{{ form.email.id_for_label }}"
+                               value="{{ form.email.value|default:'' }}"
+                               class="w-full px-4 py-3 rounded-2xl text-sm adw-input"
+                               placeholder="nom@exemple.com" 
+                               autocomplete="email" 
+                               autofocus 
+                               required>
+                        <div class="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-adw-muted">
+                            <i class="ph ph-envelope-simple text-base"></i>
+                        </div>
+                    </div>
+                    {% if form.email.errors %}
+                    <p class="mt-1.5 ml-1 text-xs text-adw-error">{{ form.email.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Mot de passe -->
+                <div>
+                    <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium mb-1.5 ml-1 text-adw-muted">
+                        Mot de passe
+                    </label>
+                    <div class="relative">
+                        <input type="password" 
+                               name="{{ form.password.html_name }}" 
+                               id="{{ form.password.id_for_label }}"
+                               class="w-full px-4 py-3 rounded-2xl text-sm adw-input"
+                               placeholder="••••••••••••" 
+                               autocomplete="current-password" 
+                               required>
+                        <button type="button" 
+                                onclick="togglePasswordVisibility()" 
+                                class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-adw-muted hover:text-adw-main transition-colors focus:outline-none cursor-pointer">
+                            <i id="eye-icon" class="ph ph-eye text-base"></i>
+                        </button>
+                    </div>
+                    {% if form.password.errors %}
+                    <p class="mt-1.5 ml-1 text-xs text-adw-error">{{ form.password.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Bouton Se connecter -->
+                <div class="pt-2">
+                    <button type="submit" 
+                            class="w-full py-3.5 px-4 rounded-2xl font-medium text-sm flex items-center justify-center gap-2 focus:outline-none cursor-pointer adw-btn-primary">
+                        <span>Se connecter</span>
+                    </button>
+                </div>
+            </form>
+
+        </div>
+
+        <!-- Copyright -->
+        <p class="text-center text-xs mt-6 text-adw-dim">
+            &copy; {% now "Y" %} Arrera Software. Tous droits réservés.
+        </p>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function togglePasswordVisibility() {
+        const passwordInput = document.getElementById("{{ form.password.id_for_label }}");
+        const eyeIcon = document.getElementById("eye-icon");
+        if (passwordInput.type === "password") {
+            passwordInput.type = "text";
+            eyeIcon.className = "ph ph-eye-slash text-base";
+        } else {
+            passwordInput.type = "password";
+            eyeIcon.className = "ph ph-eye text-base";
+        }
+    }
+</script>
+{% endblock %}
