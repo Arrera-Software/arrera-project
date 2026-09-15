@@ -12,7 +12,7 @@ Création d'une interface de gestion de projet pour les projets d'Arrera.
 
 ## Stack Technique
 
-- **Backend** : Django (Python 3.14)
+- **Backend** : Django (Python 3.13)
 - **Base de données** : PostgreSQL 16
 - **Conteneurisation** : Podman / Docker
 
