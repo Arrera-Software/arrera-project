@@ -13,6 +13,7 @@ urlpatterns = [
     # Sous-projets
     path('<slug:project_slug>/sous-projets/nouveau/', views.subproject_create_view, name='subproject_create'),
     path('<slug:project_slug>/<slug:subproject_slug>/', views.subproject_detail_view, name='subproject_detail'),
+    path('<slug:project_slug>/<slug:subproject_slug>/modifier/', views.subproject_edit_view, name='subproject_edit'),
     path('<slug:project_slug>/<slug:subproject_slug>/supprimer/', views.subproject_delete_view, name='subproject_delete'),
     
     # Tâches (dans le sous-projet)
