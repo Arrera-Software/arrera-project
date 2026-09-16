@@ -1,23 +1,44 @@
 import os
+import uuid
 from django.db import models
 from django.conf import settings
 from django.utils.text import slugify
+from django.urls import reverse
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+import base64
+
+# Clé de dérivation Fernet pour le chiffrement des secrets du coffre-fort.
+_SALT = b"arrera-vault-static-salt-2026"
+_kdf = PBKDF2HMAC(
+    algorithm=hashes.SHA256(),
+    length=32,
+    salt=_SALT,
+    iterations=100_000,
+)
+_ENCRYPTION_KEY = base64.urlsafe_b64encode(_kdf.derive(settings.SECRET_KEY.encode()))
+_cipher = Fernet(_ENCRYPTION_KEY)
 
 
 class Project(models.Model):
     """
-    Modèle Projet Principal Arrera.
-    Seul l'administrateur (superutilisateur) peut en créer.
-    Un chef de projet peut être désigné et aura tous les droits sur ce projet.
+    Modèle Projet principal.
+    Géré par l'Administrateur, supervisé par un Chef de projet, et partagé avec des Membres.
     """
+    class Visibility(models.TextChoices):
+        INTERNAL = 'internal', 'Interne (Membres assignés)'
+        PUBLIC = 'public', 'Public (Tous les utilisateurs)'
+
     name = models.CharField("Nom du projet", max_length=200)
     slug = models.SlugField("Identifiant unique (slug)", max_length=220, unique=True, blank=True)
     description = models.TextField("Description", blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
         related_name='created_projects',
-        verbose_name="Créateur (Admin)"
+        verbose_name="Créé par (Admin)"
     )
     manager = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -29,9 +50,9 @@ class Project(models.Model):
     )
     members = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
-        related_name='assigned_projects',
         blank=True,
-        verbose_name="Membres assignés"
+        related_name='joined_projects',
+        verbose_name="Membres de l'équipe"
     )
     created_at = models.DateTimeField("Date de création", auto_now_add=True)
     updated_at = models.DateTimeField("Dernière mise à jour", auto_now=True)
@@ -54,6 +75,9 @@ class Project(models.Model):
                 counter += 1
             self.slug = unique_slug
         super().save(*args, **kwargs)
+
+    def get_absolute_url(self):
+        return reverse('projects:project_detail', kwargs={'slug': self.slug})
 
 
 class SubProject(models.Model):
@@ -130,6 +154,13 @@ class Task(models.Model):
         choices=Priority.choices,
         default=Priority.MEDIUM
     )
+    dependencies = models.ManyToManyField(
+        'self',
+        symmetrical=False,
+        related_name='dependent_tasks',
+        blank=True,
+        verbose_name="Tâches préalables requises"
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -154,6 +185,14 @@ class Task(models.Model):
     @property
     def effective_start_date(self):
         return self.start_date or self.created_at.date()
+
+    def has_unmet_dependencies(self):
+        """Vérifie si la tâche a des dépendances qui ne sont pas encore dans l'état Terminé."""
+        return self.dependencies.exclude(column__name__iexact="Terminé").exists()
+
+    def get_unmet_dependencies(self):
+        """Renvoie la liste des tâches préalables non terminées."""
+        return self.dependencies.exclude(column__name__iexact="Terminé")
 
 
 class ProjectCredential(models.Model):
@@ -180,99 +219,95 @@ class ProjectCredential(models.Model):
     def __str__(self):
         return f"{self.subproject.name} - {self.title}"
 
-    def set_secret(self, raw_password):
-        """Chiffre et stocke un mot de passe en clair."""
-        from .crypto import encrypt
-        self.password = encrypt(raw_password or "")
+    def set_secret(self, raw_password: str):
+        """Chiffre le mot de passe avant stockage."""
+        if not raw_password:
+            self.password = ""
+            return
+        encrypted = _cipher.encrypt(raw_password.encode('utf-8')).decode('utf-8')
+        self.password = f"enc:{encrypted}"
 
     @property
-    def password_plaintext(self):
-        """Déchiffre le secret pour affichage / copie (accès contrôlé côté vue)."""
-        from .crypto import decrypt
-        return decrypt(self.password)
+    def password_plaintext(self) -> str:
+        """Déchiffre le mot de passe stocké."""
+        if not self.password:
+            return ""
+        if self.password.startswith("enc:"):
+            token = self.password[4:].encode('utf-8')
+            try:
+                return _cipher.decrypt(token).decode('utf-8')
+            except Exception:
+                return "« Erreur de déchiffrement »"
+        # Rétrocompatibilité données non-chiffrées
+        return self.password
 
 
 class ProjectResource(models.Model):
     """
-    Modèle Ressource / Document / Fichier physique ou Lien externe.
-    Permet de téléverser directement des fichiers physiques (PDF, archives ZIP, tableurs, etc.)
-    ou de centraliser des liens externes (Notion, Google Docs, Figma, dépôts Git).
-    Peut être associé au projet principal ou à un sous-projet spécifique.
+    Documents, fichiers joints et liens attachés à un projet ou à un sous-projet.
+    Si `subproject` est NULL, le fichier appartient au projet global.
     """
-    class EntryType(models.TextChoices):
-        FILE = 'file', 'Fichier téléversé'
-        URL = 'url', 'Lien web / URL externe'
-
     class ResourceType(models.TextChoices):
-        DOCUMENT = 'document', 'Documentation / PDF'
-        FILE = 'file', 'Fichier / Archive'
-        DESIGN = 'design', 'Design / Maquettes'
-        REPO = 'repo', 'Dépôt / Code source'
-        OTHER = 'other', 'Autre document'
+        DOCUMENT = 'document', 'Document'
+        FILE = 'file', 'Fichier'
+        LINK = 'link', 'Lien externe'
+        DESIGN = 'design', 'Maquette (Figma, etc.)'
+        REPO = 'repo', 'Dépôt Git / Code'
+        OTHER = 'other', 'Autre'
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='resources', verbose_name="Projet")
-    subproject = models.ForeignKey(SubProject, on_delete=models.CASCADE, null=True, blank=True, related_name='resources', verbose_name="Sous-projet (optionnel)")
-    entry_type = models.CharField("Type d'entrée", max_length=10, choices=EntryType.choices, default=EntryType.FILE)
-    title = models.CharField("Nom du document / fichier", max_length=200, blank=True)
-    file = models.FileField("Fichier téléversé", upload_to='project_files/%Y/%m/', null=True, blank=True)
-    url = models.URLField("Lien URL externe", max_length=500, blank=True)
-    resource_type = models.CharField("Catégorie", max_length=20, choices=ResourceType.choices, default=ResourceType.DOCUMENT)
-    file_size = models.PositiveBigIntegerField("Taille en octets", default=0, blank=True)
-    description = models.TextField("Description / Notes", blank=True)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Ajouté par")
+    subproject = models.ForeignKey(SubProject, on_delete=models.CASCADE, null=True, blank=True, related_name='resources', verbose_name="Sous-projet")
+    title = models.CharField("Titre du document", max_length=200)
+    resource_type = models.CharField("Type", max_length=20, choices=ResourceType.choices, default=ResourceType.DOCUMENT)
+    file = models.FileField("Fichier uploadé", upload_to='project_resources/%Y/%m/', blank=True, null=True)
+    url = models.URLField("Lien externe", blank=True)
+    description = models.TextField("Notes / Description", blank=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_resources',
+        verbose_name="Ajouté par"
+    )
     created_at = models.DateTimeField("Ajouté le", auto_now_add=True)
-    updated_at = models.DateTimeField("Mis à jour le", auto_now=True)
 
     class Meta:
-        verbose_name = "Document & Fichier"
-        verbose_name_plural = "Documents & Fichiers"
+        verbose_name = "Document / Ressource"
+        verbose_name_plural = "Documents & Ressources"
         ordering = ['-created_at']
 
     def __str__(self):
-        return self.title or self.file_name or "Document"
-
-    def save(self, *args, **kwargs):
-        if self.file and hasattr(self.file, 'size') and self.file.size:
-            self.file_size = self.file.size
-        if not self.title:
-            if self.file:
-                self.title = os.path.basename(self.file.name)
-            elif self.url:
-                self.title = self.url
-            else:
-                self.title = "Document"
-        super().save(*args, **kwargs)
+        return self.title
 
     @property
     def is_file(self):
         return bool(self.file)
 
     @property
-    def target_url(self):
-        if self.file:
-            return self.file.url
-        return self.url
-
-    @property
-    def file_name(self):
-        if self.file:
-            return os.path.basename(self.file.name)
-        return ""
-
-    @property
     def file_extension(self):
         if self.file:
-            _, ext = os.path.splitext(self.file.name)
-            return ext.replace('.', '').upper()
+            return os.path.splitext(self.file.name)[1].lstrip('.').upper()
         return ""
 
     @property
     def file_size_formatted(self):
-        if not self.file_size:
-            return ""
-        size = self.file_size
-        for unit in ['o', 'Ko', 'Mo', 'Go']:
-            if size < 1024.0:
-                return f"{size:.1f} {unit}".replace('.0 ', ' ')
-            size /= 1024.0
-        return f"{size:.1f} To"
+        if self.file and hasattr(self.file, 'size'):
+            size = self.file.size
+            for unit in ['o', 'Ko', 'Mo', 'Go']:
+                if size < 1024.0:
+                    return f"{size:.1f} {unit}"
+                size /= 1024.0
+        return ""
+
+    @property
+    def target_url(self):
+        if self.file:
+            try:
+                return self.file.url
+            except Exception:
+                return ""
+        if self.url:
+            if not self.url.startswith(('http://', 'https://', 'ftp://', '//')):
+                return f"https://{self.url}"
+            return self.url
+        return ""

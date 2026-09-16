@@ -7,6 +7,7 @@ from django.views.generic import FormView
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.cache import never_cache
+from django.db.models import Q
 from .forms import LoginForm
 from projects.models import Project
 
@@ -53,7 +54,9 @@ def dashboard_view(request):
     if request.user.is_superuser:
         projects = Project.objects.prefetch_related('members', 'subprojects', 'manager').all()
     else:
-        projects = (request.user.assigned_projects.all() | request.user.managed_projects.all()).distinct().prefetch_related('members', 'subprojects', 'manager')
+        projects = Project.objects.filter(
+            Q(members=request.user) | Q(manager=request.user)
+        ).distinct().prefetch_related('members', 'subprojects', 'manager')
 
     return render(request, 'home.html', {
         'user': request.user,

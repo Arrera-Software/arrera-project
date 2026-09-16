@@ -145,15 +145,16 @@
     <!-- CONTENU ONGLET 1 : GÉNÉRAL (KANBAN COMPLET)                       -->
     <!-- ================================================================= -->
     <div id="tab-content-general" class="tab-pane flex-1">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {% for col in columns %}
             <div class="rounded-3xl p-5 adw-card flex flex-col kanban-column" data-column-id="{{ col.id }}">
                 
                 <div class="flex items-center justify-between mb-4 pb-3 border-b border-[var(--border)]">
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full 
-                            {% if forloop.counter == 1 %}bg-blue-500
-                            {% elif forloop.counter == 2 %}bg-amber-500
+                            {% if col.name|lower == 'en attente' %}bg-amber-500
+                            {% elif col.name|lower == 'à faire' %}bg-blue-500
+                            {% elif col.name|lower == 'en cours' %}bg-purple-500
                             {% else %}bg-emerald-500{% endif %}">
                         </span>
                         <h3 class="text-sm font-bold text-adw-main">{{ col.name }}</h3>
@@ -165,32 +166,56 @@
 
                 <div class="space-y-3 flex-1 overflow-y-auto max-h-[calc(100vh-320px)] p-1 task-dropzone" 
                      id="dropzone-{{ col.id }}"
+                     data-col-name="{{ col.name|lower }}"
+                     {% if col.name|lower != 'en attente' %}
                      ondragover="onDragOver(event)" 
-                     ondrop="onDrop(event, '{{ col.id }}')">
+                     ondrop="onDrop(event, '{{ col.id }}')"
+                     {% endif %}>
                     
                     {% for task in col.tasks.all %}
-                    <div class="rounded-2xl p-4 adw-card-subtle hover:border-[var(--accent)] transition-all cursor-grab active:cursor-grabbing group shadow-sm"
-                         draggable="true" 
+                    <div class="rounded-2xl p-4 adw-card-subtle hover:border-[var(--accent)] transition-all {% if task.has_unmet_dependencies %}cursor-not-allowed opacity-90 border-dashed border-amber-500/40{% elif is_admin or task.assigned_to_id == request.user.id %}cursor-grab active:cursor-grabbing{% else %}cursor-default{% endif %} group shadow-sm"
+                         draggable="{% if not task.has_unmet_dependencies and is_admin or not task.has_unmet_dependencies and task.assigned_to_id == request.user.id %}true{% else %}false{% endif %}" 
                          id="task-{{ task.id }}"
+                         data-blocked="{% if task.has_unmet_dependencies %}true{% else %}false{% endif %}"
                          ondragstart="onDragStart(event, '{{ task.id }}')">
                         
                         <div class="flex items-start justify-between gap-2 mb-2">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider
-                                {% if task.priority == 'high' %}bg-rose-500/15 text-rose-400 border border-rose-500/20
-                                {% elif task.priority == 'medium' %}bg-amber-500/15 text-amber-400 border border-amber-500/20
-                                {% else %}bg-blue-500/15 text-blue-400 border border-blue-500/20{% endif %}">
-                                {{ task.get_priority_display }}
-                            </span>
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider
+                                    {% if task.priority == 'high' %}bg-rose-500/15 text-rose-400 border border-rose-500/20
+                                    {% elif task.priority == 'medium' %}bg-amber-500/15 text-amber-400 border border-amber-500/20
+                                    {% else %}bg-blue-500/15 text-blue-400 border border-blue-500/20{% endif %}">
+                                    {{ task.get_priority_display }}
+                                </span>
+                                {% if task.has_unmet_dependencies %}
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/20" title="Bloquée par : {% for dep in task.get_unmet_dependencies %}{{ dep.title }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                                    <i class="ph-bold ph-lock-key text-[10px]"></i>
+                                    Bloquée
+                                </span>
+                                {% endif %}
+                            </div>
 
-                            <form method="post" action="{% url 'projects:task_delete' task_id=task.id %}" class="inline m-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {% csrf_token %}
-                                <button type="submit" 
-                                        onclick="return confirm('Supprimer cette tâche ?')" 
-                                        class="text-adw-dim hover:text-adw-error transition-colors p-0.5 cursor-pointer" 
-                                        title="Supprimer la tâche">
-                                    <i class="ph ph-trash text-xs"></i>
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {% if is_admin or not task.has_unmet_dependencies and task.assigned_to_id == request.user.id %}
+                                <button type="button" 
+                                        onclick="openEditTaskModal({{ task.id }}, '{{ task.title|escapejs }}', '{{ task.description|escapejs }}', '{{ task.priority }}', '{{ task.assigned_to_id|default:'' }}', '{{ task.assigned_to.full_name|default:''|escapejs }}', '{{ task.assigned_to.email|default:''|escapejs }}', '{{ task.assigned_to.first_name|first|default:task.assigned_to.username|first|upper|default:'' }}', '{{ task.start_date|date:'Y-m-d'|default:'' }}', '{{ task.due_date|date:'Y-m-d'|default:'' }}', {% if is_admin %}true{% else %}false{% endif %}, [{% for dep in task.dependencies.all %}{{ dep.id }}{% if not forloop.last %},{% endif %}{% endfor %}])" 
+                                        class="text-adw-dim hover:text-adw-accent transition-colors p-0.5 cursor-pointer" 
+                                        title="Modifier la tâche">
+                                    <i class="ph ph-pencil-simple text-xs"></i>
                                 </button>
-                            </form>
+                                {% endif %}
+                                {% if is_admin %}
+                                <form method="post" action="{% url 'projects:task_delete' task_id=task.id %}" class="inline m-0">
+                                    {% csrf_token %}
+                                    <button type="submit" 
+                                            onclick="return confirm('Supprimer cette tâche ?')" 
+                                            class="text-adw-dim hover:text-adw-error transition-colors p-0.5 cursor-pointer" 
+                                            title="Supprimer la tâche">
+                                        <i class="ph ph-trash text-xs"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
                         </div>
 
                         <h4 class="text-xs font-bold text-adw-main leading-snug mb-1">{{ task.title }}</h4>
@@ -222,8 +247,12 @@
 
                     </div>
                     {% empty %}
-                    <div class="h-28 rounded-2xl border border-dashed border-[var(--border)] flex items-center justify-center text-xs text-adw-dim italic">
+                    <div class="h-28 rounded-2xl border border-dashed border-[var(--border)] flex items-center justify-center text-xs text-adw-dim italic text-center p-3">
+                        {% if col.name|lower == 'en attente' %}
+                        Aucune tâche en attente<br><span class="text-[10px] opacity-75 font-normal">(Géré automatiquement par les dépendances)</span>
+                        {% else %}
                         Glisser une tâche ici
+                        {% endif %}
                     </div>
                     {% endfor %}
 
@@ -238,15 +267,16 @@
     <!-- CONTENU ONGLET 2 : PERSONNEL (TÂCHES DE L'UTILISATEUR)             -->
     <!-- ================================================================= -->
     <div id="tab-content-personal" class="tab-pane hidden flex-1">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {% for col in columns %}
             <div class="rounded-3xl p-5 adw-card flex flex-col">
                 
                 <div class="flex items-center justify-between mb-4 pb-3 border-b border-[var(--border)]">
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full 
-                            {% if forloop.counter == 1 %}bg-blue-500
-                            {% elif forloop.counter == 2 %}bg-amber-500
+                            {% if col.name|lower == 'en attente' %}bg-amber-500
+                            {% elif col.name|lower == 'à faire' %}bg-blue-500
+                            {% elif col.name|lower == 'en cours' %}bg-purple-500
                             {% else %}bg-emerald-500{% endif %}">
                         </span>
                         <h3 class="text-sm font-bold text-adw-main">{{ col.name }}</h3>
@@ -258,22 +288,42 @@
                         {% if task.assigned_to == request.user %}
                         <div class="rounded-2xl p-4 adw-card-subtle border-l-4 border-l-[var(--accent)] group shadow-sm">
                             <div class="flex items-start justify-between gap-2 mb-2">
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider
-                                    {% if task.priority == 'high' %}bg-rose-500/15 text-rose-400 border border-rose-500/20
-                                    {% elif task.priority == 'medium' %}bg-amber-500/15 text-amber-400 border border-amber-500/20
-                                    {% else %}bg-blue-500/15 text-blue-400 border border-blue-500/20{% endif %}">
-                                    {{ task.get_priority_display }}
-                                </span>
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider
+                                        {% if task.priority == 'high' %}bg-rose-500/15 text-rose-400 border border-rose-500/20
+                                        {% elif task.priority == 'medium' %}bg-amber-500/15 text-amber-400 border border-amber-500/20
+                                        {% else %}bg-blue-500/15 text-blue-400 border border-blue-500/20{% endif %}">
+                                        {{ task.get_priority_display }}
+                                    </span>
+                                    {% if task.has_unmet_dependencies %}
+                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/20" title="Bloquée par : {% for dep in task.get_unmet_dependencies %}{{ dep.title }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                                        <i class="ph-bold ph-lock-key text-[10px]"></i>
+                                        Bloquée
+                                    </span>
+                                    {% endif %}
+                                </div>
 
-                                <form method="post" action="{% url 'projects:task_delete' task_id=task.id %}" class="inline m-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {% csrf_token %}
-                                    <button type="submit" 
-                                            onclick="return confirm('Supprimer cette tâche ?')" 
-                                            class="text-adw-dim hover:text-adw-error transition-colors p-0.5 cursor-pointer" 
-                                            title="Supprimer la tâche">
-                                        <i class="ph ph-trash text-xs"></i>
+                                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {% if is_admin or not task.has_unmet_dependencies %}
+                                    <button type="button" 
+                                            onclick="openEditTaskModal({{ task.id }}, '{{ task.title|escapejs }}', '{{ task.description|escapejs }}', '{{ task.priority }}', '{{ task.assigned_to_id|default:'' }}', '{{ task.assigned_to.full_name|default:''|escapejs }}', '{{ task.assigned_to.email|default:''|escapejs }}', '{{ task.assigned_to.first_name|first|default:task.assigned_to.username|first|upper|default:'' }}', '{{ task.start_date|date:'Y-m-d'|default:'' }}', '{{ task.due_date|date:'Y-m-d'|default:'' }}', {% if is_admin %}true{% else %}false{% endif %}, [{% for dep in task.dependencies.all %}{{ dep.id }}{% if not forloop.last %},{% endif %}{% endfor %}])" 
+                                            class="text-adw-dim hover:text-adw-accent transition-colors p-0.5 cursor-pointer" 
+                                            title="Modifier la tâche">
+                                        <i class="ph ph-pencil-simple text-xs"></i>
                                     </button>
-                                </form>
+                                    {% endif %}
+                                    {% if is_admin %}
+                                    <form method="post" action="{% url 'projects:task_delete' task_id=task.id %}" class="inline m-0">
+                                        {% csrf_token %}
+                                        <button type="submit" 
+                                                onclick="return confirm('Supprimer cette tâche ?')" 
+                                                class="text-adw-dim hover:text-adw-error transition-colors p-0.5 cursor-pointer" 
+                                                title="Supprimer la tâche">
+                                            <i class="ph ph-trash text-xs"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
                             </div>
 
                             <h4 class="text-xs font-bold text-adw-main leading-snug mb-1">{{ task.title }}</h4>
@@ -747,18 +797,29 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Colonne Kanban</label>
-                    {{ task_form.column }}
-                </div>
-                <div>
                     <label class="block text-xs font-semibold mb-1.5 text-adw-main">Priorité</label>
                     {{ task_form.priority }}
                 </div>
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Assigner à</label>
-                {{ task_form.assigned_to }}
+                <div>
+                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Assigner à</label>
+                    {{ task_form.assigned_to }}
+                    <div id="selected-user-display" 
+                         onclick="openUserPicker('create')"
+                         class="w-full px-3 py-2 rounded-2xl border border-[var(--border)] adw-card-subtle hover:border-[var(--accent)] transition-all cursor-pointer flex items-center justify-between group min-h-[42px]">
+                        <div class="flex items-center gap-2 min-w-0" id="selected-user-info">
+                            <div id="selected-user-avatar" class="w-6 h-6 rounded-full bg-black/10 dark:bg-white/10 text-adw-muted flex items-center justify-center text-[10px] font-bold shrink-0">
+                                <i class="ph-bold ph-user-circle text-sm"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <span id="selected-user-name" class="text-xs font-medium text-adw-main block truncate">Non assigné</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 text-[11px] text-adw-accent font-semibold group-hover:translate-x-0.5 transition-transform shrink-0">
+                            <span>Choisir</span>
+                            <i class="ph-bold ph-caret-right text-xs"></i>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -771,11 +832,50 @@
                     {{ task_form.due_date }}
                 </div>
             </div>
+            <div id="date-dep-notice-create" class="hidden p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 flex items-center gap-2">
+                <i class="ph-bold ph-warning text-sm shrink-0"></i>
+                <span id="date-dep-notice-create-text"></span>
+            </div>
 
             <div>
                 <label class="block text-xs font-semibold mb-1.5 text-adw-main">Description détaillée</label>
                 {{ task_form.description }}
             </div>
+
+            {% if all_project_tasks %}
+            <div>
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">
+                    Tâches préalables requises (Dépendances)
+                    <span class="text-[10px] text-adw-muted font-normal block">Sélectionnez des tâches du projet (tous sous-projets). Si non terminées, la tâche sera « En attente ».</span>
+                </label>
+                <div class="max-h-36 overflow-y-auto rounded-2xl border border-[var(--border)] adw-card-subtle p-2 space-y-1">
+                    {% for st in all_project_tasks %}
+                    <label class="flex items-center gap-2 p-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer text-xs select-none">
+                        <input type="checkbox" name="dependencies" value="{{ st.id }}" 
+                               data-due-date="{{ st.due_date|date:'Y-m-d'|default:'' }}"
+                               data-start-date="{{ st.start_date|date:'Y-m-d'|default:'' }}"
+                               data-title="{{ st.title }}"
+                               onchange="updateDependencyDateConstraint('create')"
+                               class="create-task-dep-checkbox rounded text-[var(--accent)] focus:ring-0">
+                        <div class="min-w-0 flex-1">
+                            <span class="text-adw-main font-medium block truncate">{{ st.title }}</span>
+                            <span class="text-[10px] text-adw-dim block truncate">
+                                Sous-projet : {{ st.subproject.name }}
+                                {% if st.due_date %} • Échéance : {{ st.due_date|date:'d/m/Y' }}{% elif st.start_date %} • Début : {{ st.start_date|date:'d/m/Y' }}{% endif %}
+                            </span>
+                        </div>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold shrink-0
+                            {% if st.column.name|lower == 'terminé' %}bg-emerald-500/15 text-emerald-400
+                            {% elif st.column.name|lower == 'en cours' %}bg-purple-500/15 text-purple-400
+                            {% elif st.column.name|lower == 'en attente' %}bg-amber-500/15 text-amber-400
+                            {% else %}bg-blue-500/15 text-blue-400{% endif %}">
+                            {{ st.column.name }}
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
 
             <div class="pt-4 flex items-center justify-end gap-3 border-t border-[var(--border)]">
                 <button type="button" onclick="closeModal('task-modal')" class="px-4 py-2 rounded-2xl text-xs font-semibold text-adw-muted hover:text-adw-main cursor-pointer">
@@ -786,6 +886,233 @@
                 </button>
             </div>
         </form>
+
+    </div>
+</div>
+
+<!-- ===================================================================== -->
+<!-- MODAL : MODIFIER UNE TÂCHE EXISTANTE                                  -->
+<!-- ===================================================================== -->
+<div id="edit-task-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+    <div class="w-full max-w-lg rounded-3xl p-7 adw-card shadow-2xl relative" onclick="event.stopPropagation()">
+        
+        <div class="flex items-center justify-between mb-5 pb-3 border-b border-[var(--border)]">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-xl flex items-center justify-center text-white adw-logo-badge">
+                    <i class="ph-bold ph-pencil-simple text-base"></i>
+                </div>
+                <h3 class="text-base font-bold text-adw-main">Modifier la Tâche</h3>
+            </div>
+            <button type="button" onclick="closeModal('edit-task-modal')" class="text-adw-muted hover:text-adw-main cursor-pointer p-1">
+                <i class="ph-bold ph-x text-base"></i>
+            </button>
+        </div>
+
+        <form id="edit-task-form" method="post" action="" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="redirect_tab" id="edit-task-redirect-tab" value="general">
+
+            <!-- Bannière d'information pour membre assigné -->
+            <div id="edit-task-restricted-notice" class="hidden p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400 flex items-start gap-2.5">
+                <i class="ph-bold ph-info text-base shrink-0 mt-0.5"></i>
+                <div class="leading-relaxed">
+                    <span class="font-semibold block">Droits d'édition restreints</span>
+                    <span>En tant que membre assigné, vous pouvez modifier la <strong>description</strong>, la <strong>date de début</strong>, la <strong>date limite</strong> et déplacer l'état de la tâche. Seuls le titre, la priorité et l'assignation sont réservés au chef de projet ou à l'administrateur.</span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Titre de la tâche <span class="text-adw-error">*</span></label>
+                <input type="text" name="title" id="edit-task-title" required class="w-full px-4 py-2.5 rounded-2xl text-sm adw-input" placeholder="Titre de la tâche...">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Priorité</label>
+                    <select name="priority" id="edit-task-priority" class="w-full px-4 py-2.5 rounded-2xl text-sm adw-input cursor-pointer">
+                        <option value="low">Basse</option>
+                        <option value="medium">Moyenne</option>
+                        <option value="high">Haute</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Assigner à</label>
+                    <input type="hidden" name="assigned_to" id="edit-task-assigned-to-input">
+                    <div id="edit-selected-user-display" 
+                         onclick="openUserPicker('edit')" 
+                         class="w-full px-3 py-2 rounded-2xl border border-[var(--border)] adw-card-subtle hover:border-[var(--accent)] transition-all cursor-pointer flex items-center justify-between group min-h-[42px]">
+                        <div class="flex items-center gap-2 min-w-0" id="edit-selected-user-info">
+                            <div id="edit-selected-user-avatar" class="w-6 h-6 rounded-full bg-black/10 dark:bg-white/10 text-adw-muted flex items-center justify-center text-[10px] font-bold shrink-0">
+                                <i class="ph-bold ph-user-circle text-sm"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <span id="edit-selected-user-name" class="text-xs font-medium text-adw-main block truncate">Non assigné</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 text-[11px] text-adw-accent font-semibold group-hover:translate-x-0.5 transition-transform shrink-0">
+                            <span>Choisir</span>
+                            <i class="ph-bold ph-caret-right text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Date de début</label>
+                    <input type="date" name="start_date" id="edit-task-start-date" class="w-full px-4 py-2.5 rounded-2xl text-sm adw-input">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Date limite (Deadline)</label>
+                    <input type="date" name="due_date" id="edit-task-due-date" class="w-full px-4 py-2.5 rounded-2xl text-sm adw-input">
+                </div>
+            </div>
+            <div id="date-dep-notice-edit" class="hidden p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 flex items-center gap-2">
+                <i class="ph-bold ph-warning text-sm shrink-0"></i>
+                <span id="date-dep-notice-edit-text"></span>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Description détaillée</label>
+                <textarea name="description" id="edit-task-description" rows="3" class="w-full px-4 py-2.5 rounded-2xl text-sm adw-input" placeholder="Détails, spécifications..."></textarea>
+            </div>
+
+            {% if all_project_tasks %}
+            <div id="edit-task-deps-group">
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">
+                    Tâches préalables requises (Dépendances)
+                    <span class="text-[10px] text-adw-muted font-normal block">Tâches du projet devant être terminées avant de commencer celle-ci.</span>
+                </label>
+                <div class="max-h-36 overflow-y-auto rounded-2xl border border-[var(--border)] adw-card-subtle p-2 space-y-1" id="edit-task-deps-container">
+                    {% for st in all_project_tasks %}
+                    <label class="flex items-center gap-2 p-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer text-xs select-none edit-dep-item" data-task-id="{{ st.id }}">
+                        <input type="checkbox" name="dependencies" value="{{ st.id }}" 
+                               data-due-date="{{ st.due_date|date:'Y-m-d'|default:'' }}"
+                               data-start-date="{{ st.start_date|date:'Y-m-d'|default:'' }}"
+                               data-title="{{ st.title }}"
+                               onchange="updateDependencyDateConstraint('edit')"
+                               class="edit-task-dep-checkbox rounded text-[var(--accent)] focus:ring-0">
+                        <div class="min-w-0 flex-1">
+                            <span class="text-adw-main font-medium block truncate">{{ st.title }}</span>
+                            <span class="text-[10px] text-adw-dim block truncate">
+                                Sous-projet : {{ st.subproject.name }}
+                                {% if st.due_date %} • Échéance : {{ st.due_date|date:'d/m/Y' }}{% elif st.start_date %} • Début : {{ st.start_date|date:'d/m/Y' }}{% endif %}
+                            </span>
+                        </div>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold shrink-0
+                            {% if st.column.name|lower == 'terminé' %}bg-emerald-500/15 text-emerald-400
+                            {% elif st.column.name|lower == 'en cours' %}bg-purple-500/15 text-purple-400
+                            {% elif st.column.name|lower == 'en attente' %}bg-amber-500/15 text-amber-400
+                            {% else %}bg-blue-500/15 text-blue-400{% endif %}">
+                            {{ st.column.name }}
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="pt-4 flex items-center justify-end gap-3 border-t border-[var(--border)]">
+                <button type="button" onclick="closeModal('edit-task-modal')" class="px-4 py-2 rounded-2xl text-xs font-semibold text-adw-muted hover:text-adw-main cursor-pointer">
+                    Annuler
+                </button>
+                <button type="submit" class="px-5 py-2.5 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer">
+                    Enregistrer les modifications
+                </button>
+            </div>
+        </form>
+
+    </div>
+</div>
+
+<!-- ===================================================================== -->
+<!-- MODAL : SÉLECTIONNER UN MEMBRE ASSIGNÉ (POPUP DE RECHERCHE)            -->
+<!-- ===================================================================== -->
+<div id="user-picker-modal" class="hidden fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+    <div class="w-full max-w-md rounded-3xl p-6 adw-card shadow-2xl relative flex flex-col max-h-[85vh]" onclick="event.stopPropagation()">
+        
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-[var(--border)]">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl flex items-center justify-center text-white adw-logo-badge">
+                    <i class="ph-bold ph-user-circle text-base"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-adw-main">Assigner un membre</h3>
+                    <p class="text-[10px] text-adw-muted">Sélectionnez le membre responsable de la tâche</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('user-picker-modal')" class="text-adw-muted hover:text-adw-main cursor-pointer p-1">
+                <i class="ph-bold ph-x text-base"></i>
+            </button>
+        </div>
+
+        <!-- Champ de recherche instantanée -->
+        <div class="relative mb-3">
+            <i class="ph-bold ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-adw-muted text-sm"></i>
+            <input type="text" 
+                   id="user-search-input" 
+                   oninput="filterUsersList()" 
+                   placeholder="Rechercher par nom, prénom ou email..." 
+                   class="w-full pl-9 pr-4 py-2 rounded-2xl text-xs adw-input">
+        </div>
+
+        <!-- Liste déroulante des membres -->
+        <div class="space-y-1.5 flex-1 overflow-y-auto max-h-[320px] p-1" id="user-picker-items">
+            <!-- Option Non assigné -->
+            <div onclick="selectUser('', 'Non assigné', '', '')" 
+                 class="user-item p-2.5 rounded-2xl border border-[var(--border)] adw-card-subtle hover:border-[var(--accent)] transition-all cursor-pointer flex items-center justify-between"
+                 data-user-name="non assigné"
+                 data-user-email="">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-black/10 dark:bg-white/10 text-adw-muted flex items-center justify-center text-xs font-bold shrink-0">
+                        <i class="ph-bold ph-user-minus text-sm"></i>
+                    </div>
+                    <div>
+                        <span class="text-xs font-semibold text-adw-main block">Non assigné</span>
+                        <span class="text-[10px] text-adw-muted block">Aucun membre affecté</span>
+                    </div>
+                </div>
+                <i class="ph-bold ph-check text-adw-accent text-sm opacity-0 check-indicator" data-user-id=""></i>
+            </div>
+
+            <!-- Liste des membres éligibles -->
+            {% for u in assignable_users %}
+            <div onclick="selectUser('{{ u.id }}', '{{ u.full_name|escapejs }}', '{{ u.email|escapejs }}', '{{ u.first_name|first|default:u.username|first|upper }}')" 
+                 class="user-item p-2.5 rounded-2xl border border-[var(--border)] adw-card-subtle hover:border-[var(--accent)] transition-all cursor-pointer flex items-center justify-between"
+                 data-user-name="{{ u.full_name|lower }}"
+                 data-user-email="{{ u.email|lower }}">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-8 h-8 rounded-full border border-[var(--surface)] flex items-center justify-center text-xs font-bold adw-user-avatar shrink-0">
+                        {{ u.first_name|first|default:u.username|first|upper }}
+                    </div>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-semibold text-adw-main block truncate">{{ u.full_name }}</span>
+                            {% if u.id == project.manager_id %}
+                            <span class="px-1.5 py-0.2 rounded-full text-[9px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">Chef de projet</span>
+                            {% endif %}
+                        </div>
+                        <span class="text-[10px] text-adw-muted block truncate">{{ u.email }}</span>
+                    </div>
+                </div>
+                <i class="ph-bold ph-check text-adw-accent text-sm opacity-0 check-indicator shrink-0" data-user-id="{{ u.id }}"></i>
+            </div>
+            {% empty %}
+            <div class="p-6 text-center text-xs text-adw-dim italic">
+                Aucun membre assignable dans ce projet
+            </div>
+            {% endfor %}
+
+            <div id="no-user-search-match" class="hidden p-6 text-center text-xs text-adw-dim italic">
+                Aucun utilisateur ne correspond à votre recherche
+            </div>
+        </div>
+
+        <div class="pt-3 mt-2 border-t border-[var(--border)] flex justify-end">
+            <button type="button" onclick="closeModal('user-picker-modal')" class="px-4 py-2 rounded-2xl text-xs font-semibold text-adw-muted hover:text-adw-main cursor-pointer">
+                Fermer
+            </button>
+        </div>
 
     </div>
 </div>
@@ -975,6 +1302,246 @@
         }
     }
 
+    let activeUserPickerTarget = 'create';
+
+    function openUserPicker(target) {
+        activeUserPickerTarget = target;
+        const currentVal = (target === 'edit') 
+            ? (document.getElementById('edit-task-assigned-to-input')?.value || '')
+            : (document.getElementById('task-assigned-to-input')?.value || '');
+
+        document.querySelectorAll('.check-indicator').forEach(el => {
+            if (el.getAttribute('data-user-id') === String(currentVal)) {
+                el.classList.remove('opacity-0');
+            } else {
+                el.classList.add('opacity-0');
+            }
+        });
+
+        const searchInput = document.getElementById('user-search-input');
+        if (searchInput) {
+            searchInput.value = '';
+            filterUsersList();
+        }
+
+        openModal('user-picker-modal');
+    }
+
+    function selectUser(userId, userName, userEmail, avatarInitial) {
+        const isEdit = (activeUserPickerTarget === 'edit');
+        const inputId = isEdit ? 'edit-task-assigned-to-input' : 'task-assigned-to-input';
+        const nameId = isEdit ? 'edit-selected-user-name' : 'selected-user-name';
+        const avatarId = isEdit ? 'edit-selected-user-avatar' : 'selected-user-avatar';
+
+        const input = document.getElementById(inputId);
+        if (input) input.value = userId;
+
+        const nameEl = document.getElementById(nameId);
+        if (nameEl) nameEl.textContent = userName;
+
+        const avatarEl = document.getElementById(avatarId);
+        if (avatarEl) {
+            if (avatarInitial) {
+                avatarEl.innerHTML = avatarInitial;
+                avatarEl.className = 'w-6 h-6 rounded-full border border-[var(--surface)] flex items-center justify-center text-[10px] font-bold adw-user-avatar shrink-0';
+            } else {
+                avatarEl.innerHTML = '<i class="ph-bold ph-user-circle text-sm"></i>';
+                avatarEl.className = 'w-6 h-6 rounded-full bg-black/10 dark:bg-white/10 text-adw-muted flex items-center justify-center text-[10px] font-bold shrink-0';
+            }
+        }
+
+        document.querySelectorAll('.check-indicator').forEach(el => {
+            if (el.getAttribute('data-user-id') === String(userId)) {
+                el.classList.remove('opacity-0');
+            } else {
+                el.classList.add('opacity-0');
+            }
+        });
+
+        closeModal('user-picker-modal');
+    }
+
+    function openEditTaskModal(taskId, title, description, priority, assignedId, assignedName, assignedEmail, avatarInitial, startDate, dueDate, canFullEdit, depIds = []) {
+        const form = document.getElementById('edit-task-form');
+        if (form) form.action = '/projets/tasks/' + taskId + '/edit/';
+
+        const redirectTabInput = document.getElementById('edit-task-redirect-tab');
+        if (redirectTabInput) redirectTabInput.value = currentTab;
+
+        const titleInput = document.getElementById('edit-task-title');
+        if (titleInput) {
+            titleInput.value = title || '';
+            titleInput.readOnly = !canFullEdit;
+            titleInput.classList.toggle('opacity-60', !canFullEdit);
+            titleInput.classList.toggle('cursor-not-allowed', !canFullEdit);
+        }
+
+        const priorityInput = document.getElementById('edit-task-priority');
+        if (priorityInput) {
+            priorityInput.value = priority || 'medium';
+            priorityInput.disabled = !canFullEdit;
+            priorityInput.classList.toggle('opacity-60', !canFullEdit);
+            priorityInput.classList.toggle('cursor-not-allowed', !canFullEdit);
+        }
+
+        const startInput = document.getElementById('edit-task-start-date');
+        if (startInput) {
+            startInput.value = startDate || '';
+            startInput.readOnly = false;
+            startInput.classList.remove('opacity-60', 'cursor-not-allowed');
+        }
+
+        const dueInput = document.getElementById('edit-task-due-date');
+        if (dueInput) {
+            dueInput.value = dueDate || '';
+            dueInput.readOnly = false;
+            dueInput.classList.remove('opacity-60', 'cursor-not-allowed');
+        }
+
+        const assignedInput = document.getElementById('edit-task-assigned-to-input');
+        if (assignedInput) assignedInput.value = assignedId || '';
+
+        const nameEl = document.getElementById('edit-selected-user-name');
+        if (nameEl) nameEl.textContent = assignedName || 'Non assigné';
+
+        const avatarEl = document.getElementById('edit-selected-user-avatar');
+        if (avatarEl) {
+            if (avatarInitial) {
+                avatarEl.innerHTML = avatarInitial;
+                avatarEl.className = 'w-6 h-6 rounded-full border border-[var(--surface)] flex items-center justify-center text-[10px] font-bold adw-user-avatar shrink-0';
+            } else {
+                avatarEl.innerHTML = '<i class="ph-bold ph-user-circle text-sm"></i>';
+                avatarEl.className = 'w-6 h-6 rounded-full bg-black/10 dark:bg-white/10 text-adw-muted flex items-center justify-center text-[10px] font-bold shrink-0';
+            }
+        }
+
+        const userDisplay = document.getElementById('edit-selected-user-display');
+        if (userDisplay) {
+            if (canFullEdit) {
+                userDisplay.setAttribute('onclick', "openUserPicker('edit')");
+                userDisplay.classList.remove('opacity-60', 'cursor-not-allowed');
+            } else {
+                userDisplay.removeAttribute('onclick');
+                userDisplay.classList.add('opacity-60', 'cursor-not-allowed');
+            }
+        }
+
+        const noticeEl = document.getElementById('edit-task-restricted-notice');
+        if (noticeEl) {
+            if (canFullEdit) {
+                noticeEl.classList.add('hidden');
+            } else {
+                noticeEl.classList.remove('hidden');
+            }
+        }
+
+        const descInput = document.getElementById('edit-task-description');
+        if (descInput) descInput.value = description || '';
+
+        // Gestion des cases à cocher des dépendances
+        const depCheckboxes = document.querySelectorAll('.edit-task-dep-checkbox');
+        depCheckboxes.forEach(cb => {
+            const val = parseInt(cb.value);
+            cb.checked = depIds.includes(val);
+            cb.disabled = !canFullEdit;
+            // Masquer la tâche elle-même de la liste de ses dépendances
+            const item = cb.closest('.edit-dep-item');
+            if (item) {
+                if (val === taskId) {
+                    item.classList.add('hidden');
+                } else {
+                    item.classList.remove('hidden');
+                }
+            }
+        });
+
+        updateDependencyDateConstraint('edit');
+        openModal('edit-task-modal');
+    }
+
+
+    function updateDependencyDateConstraint(mode) {
+        const isCreate = (mode === 'create');
+        const checkboxes = isCreate 
+            ? document.querySelectorAll('.create-task-dep-checkbox:checked')
+            : document.querySelectorAll('.edit-task-dep-checkbox:checked');
+
+        const startDateInput = isCreate 
+            ? document.querySelector('#task-modal input[name="start_date"]')
+            : document.getElementById('edit-task-start-date');
+
+        const dueDateInput = isCreate 
+            ? document.querySelector('#task-modal input[name="due_date"]')
+            : document.getElementById('edit-task-due-date');
+
+        const noticeBox = document.getElementById(isCreate ? 'date-dep-notice-create' : 'date-dep-notice-edit');
+        const noticeText = document.getElementById(isCreate ? 'date-dep-notice-create-text' : 'date-dep-notice-edit-text');
+
+        let maxDepDate = '';
+        let maxDepTitle = '';
+
+        checkboxes.forEach(cb => {
+            const dueDate = cb.getAttribute('data-due-date') || '';
+            const startDate = cb.getAttribute('data-start-date') || '';
+            const refDate = dueDate || startDate;
+            const title = cb.getAttribute('data-title') || '';
+
+            if (refDate && (!maxDepDate || refDate > maxDepDate)) {
+                maxDepDate = refDate;
+                maxDepTitle = title;
+            }
+        });
+
+        if (maxDepDate) {
+            if (startDateInput) {
+                startDateInput.min = maxDepDate;
+                if (startDateInput.value && startDateInput.value < maxDepDate) {
+                    startDateInput.value = maxDepDate;
+                }
+            }
+            if (dueDateInput) {
+                dueDateInput.min = (startDateInput && startDateInput.value) ? startDateInput.value : maxDepDate;
+            }
+
+            if (noticeBox && noticeText) {
+                const parts = maxDepDate.split('-');
+                const formattedDate = (parts.length === 3) ? `${parts[2]}/${parts[1]}/${parts[0]}` : maxDepDate;
+                noticeText.innerHTML = `Date de début minimale : <strong>${formattedDate}</strong> (imposée par la tâche requise « ${escapeHtml(maxDepTitle)} »).`;
+                noticeBox.classList.remove('hidden');
+            }
+        } else {
+            if (startDateInput) startDateInput.removeAttribute('min');
+            if (dueDateInput) dueDateInput.removeAttribute('min');
+            if (noticeBox) noticeBox.classList.add('hidden');
+        }
+    }
+
+    function filterUsersList() {
+        const q = (document.getElementById('user-search-input')?.value || '').toLowerCase().trim();
+        const items = document.querySelectorAll('#user-picker-items .user-item');
+        let visibleCount = 0;
+
+        items.forEach(item => {
+            const name = item.getAttribute('data-user-name') || '';
+            const email = item.getAttribute('data-user-email') || '';
+            if (!q || name.includes(q) || email.includes(q)) {
+                item.classList.remove('hidden');
+                visibleCount++;
+            } else {
+                item.classList.add('hidden');
+            }
+        });
+
+        const noMatch = document.getElementById('no-user-search-match');
+        if (noMatch) {
+            if (visibleCount === 0) {
+                noMatch.classList.remove('hidden');
+            } else {
+                noMatch.classList.add('hidden');
+            }
+        }
+    }
+
     function openModal(modalId) {
         const modal = document.getElementById(modalId);
         if (modal) modal.classList.remove('hidden');
@@ -1060,54 +1627,52 @@
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const todayStr = new Date().toISOString().split('T')[0];
 
-        let html = `
-            <div class="adw-card rounded-3xl overflow-hidden border border-[var(--border)]">
-                <div class="grid grid-cols-[220px_repeat(${daysInMonth},_minmax(32px,1fr))] border-b border-[var(--border)] bg-[var(--surface-subtle)] text-[11px] font-semibold sticky top-0 z-20">
-                    <div class="p-3 border-r border-[var(--border)] text-adw-muted flex items-center justify-between">
-                        <span>Tâches & Statuts</span>
-                        <span class="text-[10px] text-adw-dim font-normal">${tasksGanttData.length}</span>
-                    </div>
-        `;
+        if (tasksGanttData.length === 0) {
+            root.innerHTML = `
+                <div class="adw-card rounded-3xl overflow-hidden border border-[var(--border)] p-12 text-center text-xs text-adw-dim italic">
+                    Aucune tâche planifiée pour ce sous-projet.
+                </div>`;
+            return;
+        }
 
+        // 1. En-tête des jours
+        let daysHeaderHtml = '';
         for (let d = 1; d <= daysInMonth; d++) {
             const dateObj = new Date(year, month, d);
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const isToday = (dateStr === todayStr);
             const dayOfWeek = dateObj.toLocaleDateString('fr-FR', { weekday: 'narrow' });
 
-            html += `
-                <div class="p-1.5 text-center border-r border-[var(--border)] flex flex-col items-center justify-center ${isToday ? 'bg-blue-500/15 text-adw-accent font-bold' : 'text-adw-muted'}">
+            daysHeaderHtml += `
+                <div class="p-1.5 text-center border-r border-[var(--border)] flex flex-col items-center justify-center min-w-[36px] ${isToday ? 'bg-blue-500/15 text-adw-accent font-bold' : 'text-adw-muted'}">
                     <span class="text-[9px] uppercase">${dayOfWeek}</span>
                     <span class="text-xs ${isToday ? 'w-5 h-5 rounded-full bg-[var(--accent)] text-white flex items-center justify-center font-bold' : ''}">${d}</span>
                 </div>
             `;
         }
 
-        html += `</div><div class="divide-y divide-[var(--border)] bg-[var(--surface)]">`;
-
-        if (tasksGanttData.length === 0) {
-            html += `
-                <div class="p-12 text-center text-xs text-adw-dim italic">
-                    Aucune tâche planifiée pour ce sous-projet.
-                </div>
-            `;
-        }
+        // 2. Lignes
+        let leftRowsHtml = '';
+        let rightRowsHtml = '';
 
         tasksGanttData.forEach(task => {
             const priorityColor = task.priority === 'high' ? 'bg-rose-500/85 text-white' : (task.priority === 'medium' ? 'bg-amber-500/85 text-white' : 'bg-blue-500/85 text-white');
             
-            html += `
-                <div class="grid grid-cols-[220px_repeat(${daysInMonth},_minmax(32px,1fr))] items-center hover:bg-[var(--surface-hover)] transition-colors text-xs group">
-                    <div class="p-3 border-r border-[var(--border)] flex items-center justify-between gap-2 overflow-hidden">
-                        <div class="truncate">
-                            <p class="font-bold text-adw-main text-xs truncate" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</p>
-                            <div class="flex items-center gap-1.5 text-[10px] text-adw-dim mt-0.5">
-                                <span>${escapeHtml(task.column_name)}</span>
-                                <span>•</span>
-                                <span>${escapeHtml(task.assigned_name)}</span>
-                            </div>
+            leftRowsHtml += `
+                <div class="h-14 p-3 flex items-center justify-between gap-2 overflow-hidden hover:bg-[var(--surface-hover)] transition-colors">
+                    <div class="truncate">
+                        <p class="font-bold text-adw-main text-xs truncate" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</p>
+                        <div class="flex items-center gap-1.5 text-[10px] text-adw-dim mt-0.5">
+                            <span>${escapeHtml(task.column_name)}</span>
+                            <span>•</span>
+                            <span>${escapeHtml(task.assigned_name)}</span>
                         </div>
                     </div>
+                </div>
+            `;
+
+            rightRowsHtml += `
+                <div class="h-14 grid grid-cols-[repeat(${daysInMonth},_minmax(36px,1fr))] items-center hover:bg-[var(--surface-hover)] transition-colors">
             `;
 
             for (let d = 1; d <= daysInMonth; d++) {
@@ -1121,33 +1686,64 @@
                 let cellContent = '';
 
                 if (isStart && isDue) {
-                    cellContent = `<div class="h-6 rounded-lg ${priorityColor} shadow-sm mx-1 flex items-center justify-center text-[10px] font-bold" title="${escapeHtml(task.title)} (Échéance: ${dateStr})">★</div>`;
-                } else if (isStart) {
-                    cellContent = `<div class="h-6 rounded-l-lg ${priorityColor} shadow-sm ml-1 flex items-center pl-1 text-[9px] font-bold truncate" title="${escapeHtml(task.title)}">▶</div>`;
-                } else if (isDue) {
-                    cellContent = `<div class="h-6 rounded-r-lg ${priorityColor} shadow-sm mr-1 flex items-center justify-end pr-1 text-[9px] font-bold truncate" title="${escapeHtml(task.title)} (Fin: ${dateStr})">■</div>`;
+                    cellContent = `<div class="w-full h-7 rounded-lg ${priorityColor} shadow-sm mx-1 flex items-center justify-center text-[10px] font-bold" title="${escapeHtml(task.title)} (Le ${dateStr})">★</div>`;
+                } else if (isStart && task.due_date) {
+                    cellContent = `<div class="w-full h-7 rounded-l-lg ${priorityColor} shadow-sm flex items-center pl-1.5 text-[9px] font-bold" title="${escapeHtml(task.title)} (Début: ${dateStr})">▶</div>`;
+                } else if (isDue && task.start_date) {
+                    cellContent = `<div class="w-full h-7 rounded-r-lg ${priorityColor} shadow-sm flex items-center justify-end pr-1.5 text-[9px] font-bold" title="${escapeHtml(task.title)} (Fin: ${dateStr})">■</div>`;
                 } else if (isInRange) {
-                    cellContent = `<div class="h-6 ${priorityColor} opacity-75" title="${escapeHtml(task.title)}"></div>`;
+                    cellContent = `<div class="w-full h-7 ${priorityColor} opacity-90" title="${escapeHtml(task.title)}"></div>`;
+                } else if (isStart || isDue) {
+                    cellContent = `<div class="w-full h-7 rounded-lg ${priorityColor} shadow-sm mx-1 flex items-center justify-center text-[10px] font-bold" title="${escapeHtml(task.title)} (Date: ${dateStr})">★</div>`;
                 }
 
-                html += `
-                    <div class="h-12 border-r border-[var(--border)] relative flex items-center justify-center p-0.5 ${isToday ? 'bg-blue-500/5' : ''}">
+                rightRowsHtml += `
+                    <div class="h-14 border-r border-[var(--border)] relative flex items-center justify-center ${isToday ? 'bg-blue-500/10' : ''}">
                         ${cellContent}
                     </div>
                 `;
             }
 
-            html += `</div>`;
+            rightRowsHtml += `</div>`;
         });
 
-        html += `</div></div>`;
-        root.innerHTML = html;
+        root.innerHTML = `
+            <div class="adw-card rounded-3xl overflow-hidden border border-[var(--border)] flex w-full">
+                <!-- VOLET GAUCHE FIXE -->
+                <div class="w-[240px] shrink-0 border-r border-[var(--border)] bg-[var(--surface)] flex flex-col z-10 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.25)]">
+                    <div class="h-12 p-3 border-b border-[var(--border)] text-adw-muted flex items-center justify-between text-[11px] font-semibold select-none">
+                        <span>Tâches & Statuts</span>
+                        <span class="text-[10px] text-adw-dim font-normal">${tasksGanttData.length}</span>
+                    </div>
+                    <div class="divide-y divide-[var(--border)]">
+                        ${leftRowsHtml}
+                    </div>
+                </div>
+
+                <!-- VOLET DROIT DÉFILABLE -->
+                <div class="flex-1 overflow-x-auto">
+                    <div class="min-w-max">
+                        <div class="h-12 grid grid-cols-[repeat(${daysInMonth},_minmax(36px,1fr))] border-b border-[var(--border)] bg-[var(--surface)] text-[11px] font-semibold text-center select-none">
+                            ${daysHeaderHtml}
+                        </div>
+                        <div class="divide-y divide-[var(--border)]">
+                            ${rightRowsHtml}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     // Drag and drop Kanban
     let draggedTaskId = null;
 
     function onDragStart(event, taskId) {
+        const el = document.getElementById('task-' + taskId);
+        if (el && el.getAttribute('data-blocked') === 'true') {
+            event.preventDefault();
+            return false;
+        }
         draggedTaskId = taskId;
         event.dataTransfer.setData('text/plain', taskId);
         event.target.classList.add('opacity-50');
@@ -1160,6 +1756,10 @@
 
     function onDrop(event, columnId) {
         event.preventDefault();
+        const dropzone = document.getElementById('dropzone-' + columnId);
+        if (dropzone && dropzone.getAttribute('data-col-name') === 'en attente') {
+            return;
+        }
         const taskId = draggedTaskId || event.dataTransfer.getData('text/plain');
         if (!taskId) return;
 
