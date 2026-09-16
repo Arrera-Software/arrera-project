@@ -58,17 +58,6 @@ def project_create_view(request):
             project.save()
             form.save_m2m()
 
-            # Création automatique du premier sous-projet par défaut
-            subproject = SubProject.objects.create(
-                project=project,
-                name="Général",
-                description="Sous-projet principal par défaut pour organiser les premières tâches."
-            )
-            # Colonnes Kanban par défaut
-            KanbanColumn.objects.create(subproject=subproject, name="À faire", order=1)
-            KanbanColumn.objects.create(subproject=subproject, name="En cours", order=2)
-            KanbanColumn.objects.create(subproject=subproject, name="Terminé", order=3)
-
             messages.success(request, f"Projet « {project.name} » créé avec succès.")
             return redirect('projects:project_detail', slug=project.slug)
     else:
