@@ -210,6 +210,37 @@ def project_detail_view(request, slug):
             'count': len(col_tasks),
         })
 
+    # Données optimisées pour la vue Gantt globale du projet
+    tasks_gantt_data = []
+    for t in all_tasks:
+        start_d = t.start_date or (t.due_date if t.due_date else today)
+        due_d = t.due_date or start_d
+        assigned_name = t.assigned_to.first_name if (t.assigned_to and t.assigned_to.first_name) else (t.assigned_to.username if t.assigned_to else "Non assigné")
+        assigned_avatar = (t.assigned_to.first_name[0] if t.assigned_to and t.assigned_to.first_name else (t.assigned_to.username[0] if t.assigned_to else "?")).upper()
+
+        dep_ids = list(t.dependencies.values_list('id', flat=True))
+
+        tasks_gantt_data.append({
+            'id': t.id,
+            'title': t.title,
+            'subproject_name': t.column.subproject.name,
+            'subproject_slug': t.column.subproject.slug,
+            'description': t.description or '',
+            'column_id': t.column_id,
+            'column_name': t.column.name,
+            'priority': t.priority,
+            'priority_display': t.get_priority_display(),
+            'start_date': t.start_date.strftime('%Y-%m-%d') if t.start_date else '',
+            'due_date': t.due_date.strftime('%Y-%m-%d') if t.due_date else '',
+            'has_due_date': bool(t.due_date),
+            'assigned_id': str(t.assigned_to_id) if t.assigned_to_id else '',
+            'assigned_name': (t.assigned_to.full_name if t.assigned_to else "Non assigné"),
+            'assigned_email': (t.assigned_to.email if t.assigned_to else ""),
+            'assigned_avatar': assigned_avatar,
+            'is_blocked': t.has_unmet_dependencies(),
+            'dependencies': dep_ids,
+        })
+
     return render(request, 'projects/project_detail.html', {
         'project': project,
         'subprojects': subprojects,
@@ -225,6 +256,7 @@ def project_detail_view(request, slug):
         'today': today,
         'is_admin': is_admin,
         'active_tab': active_tab,
+        'tasks_gantt_json': json.dumps(tasks_gantt_data),
     })
 
 

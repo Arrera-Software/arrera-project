@@ -105,7 +105,19 @@
                 </span>
             </button>
 
-            <!-- Onglet 3 : Fichiers & Documents -->
+            <!-- Onglet 3 : Planning Gantt -->
+            <button type="button" 
+                    onclick="switchProjectTab('gantt')" 
+                    id="project-tab-btn-gantt"
+                    class="tab-btn inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer">
+                <i class="ph-bold ph-calendar"></i>
+                <span>Planning Gantt</span>
+                <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[var(--surface)] text-adw-muted">
+                    {{ total_tasks_count }}
+                </span>
+            </button>
+
+            <!-- Onglet 4 : Fichiers & Documents -->
             <button type="button" 
                     onclick="switchProjectTab('files')" 
                     id="project-tab-btn-files"
@@ -386,7 +398,92 @@
     </div>
 
     <!-- ================================================================= -->
-    <!-- CONTENU ONGLET 3 : DOCUMENTS & FICHIERS DU PROJET                 -->
+    <!-- CONTENU ONGLET 3 : PLANNING GANTT GLOBAL DU PROJET                -->
+    <!-- ================================================================= -->
+    <div id="project-tab-content-gantt" class="project-tab-pane hidden flex-1 flex flex-col">
+        
+        <!-- En-tête et filtres du Gantt Global -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+                <h2 class="text-lg font-bold tracking-tight text-adw-main flex items-center gap-2">
+                    <i class="ph-bold ph-calendar text-adw-accent"></i>
+                    <span>Planning Gantt du projet</span>
+                </h2>
+                <p class="text-xs text-adw-muted">Vue chronologique et échéances de l'ensemble des tâches de tous les sous-projets.</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- Filtre par sous-projet dans le Gantt -->
+                {% if subprojects|length > 1 %}
+                <div>
+                    <select id="gantt-subproject-filter" 
+                            onchange="filterGanttBySubproject(this.value)" 
+                            class="px-3 py-1.5 rounded-xl text-xs font-semibold adw-input border border-[var(--border)] cursor-pointer focus:outline-none">
+                        <option value="all">Tous les sous-projets</option>
+                        {% for sub in subprojects %}
+                        <option value="{{ sub.id }}">{{ sub.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Contrôles de navigation dans le calendrier Gantt -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-3xl adw-card mb-6">
+            <div class="flex items-center gap-3">
+                <button type="button" 
+                        onclick="navigateGantt(-1)" 
+                        class="p-2 rounded-xl text-adw-muted hover:text-adw-main adw-card-subtle cursor-pointer transition-colors"
+                        title="Mois précédent">
+                    <i class="ph-bold ph-caret-left text-sm"></i>
+                </button>
+                <span id="gantt-current-month-label" class="text-sm font-bold text-adw-main min-w-[140px] text-center capitalize">
+                    Mois en cours
+                </span>
+                <button type="button" 
+                        onclick="navigateGantt(1)" 
+                        class="p-2 rounded-xl text-adw-muted hover:text-adw-main adw-card-subtle cursor-pointer transition-colors"
+                        title="Mois suivant">
+                    <i class="ph-bold ph-caret-right text-sm"></i>
+                </button>
+                <button type="button" 
+                        onclick="resetGanttToToday()" 
+                        class="px-3 py-1.5 rounded-xl text-xs font-semibold adw-card-subtle hover:text-adw-main transition-colors cursor-pointer ml-2">
+                    Aujourd'hui
+                </button>
+            </div>
+
+            <!-- Légende Gantt -->
+            <div class="flex flex-wrap items-center gap-4 text-[11px] text-adw-muted">
+                <div class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded-md bg-rose-500/80 inline-block"></span>
+                    <span>Haute / Urgente</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded-md bg-amber-500/80 inline-block"></span>
+                    <span>Moyenne</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded-md bg-blue-500/80 inline-block"></span>
+                    <span>Basse</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tableau Gantt Matrix -->
+        <div class="adw-gantt-wrapper flex flex-col flex-1 min-h-[480px] mb-8">
+            <div class="overflow-x-auto overflow-y-hidden flex-1 relative" id="gantt-scroll-container">
+                <div id="gantt-matrix-root" class="min-w-full">
+                    <!-- Rendu dynamique injecté par JavaScript -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- CONTENU ONGLET 4 : DOCUMENTS & FICHIERS DU PROJET                 -->
     <!-- ================================================================= -->
     <div id="project-tab-content-files" class="project-tab-pane hidden">
         
@@ -803,6 +900,9 @@
     let currentProjectTab = "{{ active_tab|default:'home' }}";
     let activeTaskFilter = 'all'; // 'all' ou 'my'
     let activeSubprojectFilter = 'all';
+    let ganttSubprojectFilter = 'all';
+    const tasksGanttData = {{ tasks_gantt_json|safe }};
+    let ganttViewDate = new Date();
 
     function switchProjectTab(tabKey) {
         currentProjectTab = tabKey;
@@ -824,6 +924,10 @@
         if (activePane) activePane.classList.remove('hidden');
         if (activeBtn) {
             activeBtn.className = 'tab-btn inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all adw-btn-primary shadow-sm cursor-pointer';
+        }
+
+        if (tabKey === 'gantt') {
+            renderGanttMatrix();
         }
 
         // Afficher / masquer les boutons d'action en haut à droite
@@ -964,6 +1068,173 @@
                 btnElement.innerHTML = originalIcon;
             }, 1500);
         });
+    }
+
+
+    function navigateGantt(offsetMonth) {
+        ganttViewDate.setMonth(ganttViewDate.getMonth() + offsetMonth);
+        renderGanttMatrix();
+    }
+
+    function resetGanttToToday() {
+        ganttViewDate = new Date();
+        renderGanttMatrix();
+    }
+
+    function filterGanttBySubproject(subId) {
+        ganttSubprojectFilter = subId;
+        renderGanttMatrix();
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return text.toString().replace(/[&<>"']/g, m => map[m]);
+    }
+
+    function renderGanttMatrix() {
+        const root = document.getElementById('gantt-matrix-root');
+        const monthLabel = document.getElementById('gantt-current-month-label');
+        if (!root || !monthLabel) return;
+
+        const year = ganttViewDate.getFullYear();
+        const month = ganttViewDate.getMonth();
+        
+        const monthFormatter = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' });
+        monthLabel.textContent = monthFormatter.format(ganttViewDate);
+
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+        // Filtrage des tâches selon le sous-projet
+        const filteredTasks = tasksGanttData.filter(task => {
+            if (ganttSubprojectFilter === 'all') return true;
+            const selectEl = document.getElementById('gantt-subproject-filter');
+            if (selectEl) {
+                const opt = selectEl.querySelector('option[value="' + ganttSubprojectFilter + '"]');
+                if (opt && opt.text.trim() === task.subproject_name.trim()) return true;
+            }
+            return false;
+        });
+
+        if (filteredTasks.length === 0) {
+            root.innerHTML = `
+                <div class="rounded-3xl border border-[var(--border)] overflow-hidden adw-card p-12 text-center text-adw-dim text-xs italic">
+                    Aucune tâche trouvée pour ce mois / sous-projet.
+                </div>`;
+            return;
+        }
+
+        // 1. Construction des jours de l'en-tête calendrier
+        let daysHeaderHtml = '';
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(year, month, d);
+            const dayNum = dateObj.getDay();
+            const isWeekend = (dayNum === 0 || dayNum === 6);
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const isToday = (dateStr === todayStr);
+
+            const dayLetters = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+            const dayLetter = dayLetters[dayNum];
+
+            daysHeaderHtml += `
+                <div class="p-2 border-r border-[var(--border)] flex flex-col items-center justify-center min-w-[36px] ${isToday ? 'bg-blue-500/15 text-adw-accent font-black' : (isWeekend ? 'bg-black/5 dark:bg-white/5 text-adw-dim' : '')}">
+                    <span class="text-[10px] uppercase font-semibold opacity-70">${dayLetter}</span>
+                    <span class="text-xs ${isToday ? 'text-adw-accent font-bold' : ''}">${d}</span>
+                </div>
+            `;
+        }
+
+        // 2. Construction des lignes (colonne gauche fixe + calendrier droit défilable)
+        let leftRowsHtml = '';
+        let rightRowsHtml = '';
+
+        filteredTasks.forEach(task => {
+            const priorityColor = task.priority === 'high' || task.priority === 'urgent' ? 'bg-rose-500/85 text-white' : (task.priority === 'medium' ? 'bg-amber-500/85 text-white' : 'bg-blue-500/85 text-white');
+            
+            // Colonne gauche permanente
+            leftRowsHtml += `
+                <div class="h-14 p-3 flex items-center justify-between gap-2 overflow-hidden hover:bg-[var(--surface-hover)] transition-colors">
+                    <div class="truncate min-w-0 flex-1">
+                        <div class="flex items-center gap-1.5">
+                            <p class="font-bold text-adw-main text-xs truncate" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</p>
+                            ${task.is_blocked ? '<i class="ph-bold ph-lock-key text-[10px] text-amber-400" title="Bloquée par dépendances"></i>' : ''}
+                        </div>
+                        <div class="flex items-center gap-1 text-[10px] text-adw-dim mt-0.5 truncate">
+                            <a href="/projets/{{ project.slug }}/${escapeHtml(task.subproject_slug)}/" class="font-semibold text-adw-accent hover:underline truncate">${escapeHtml(task.subproject_name)}</a>
+                            <span>•</span>
+                            <span class="truncate">${escapeHtml(task.column_name)}</span>
+                            <span>•</span>
+                            <span class="truncate">${escapeHtml(task.assigned_name)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Ligne calendrier droite
+            rightRowsHtml += `
+                <div class="h-14 grid grid-cols-[repeat(${daysInMonth},_minmax(36px,1fr))] items-center hover:bg-[var(--surface-hover)] transition-colors">
+            `;
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const isToday = (dateStr === todayStr);
+
+                let isStart = (task.start_date === dateStr);
+                let isDue = (task.due_date === dateStr);
+                let isInRange = (task.start_date && task.due_date && dateStr >= task.start_date && dateStr <= task.due_date);
+
+                let cellContent = '';
+
+                if (isStart && isDue) {
+                    cellContent = `<div class="w-full h-7 rounded-lg ${priorityColor} shadow-sm mx-1 flex items-center justify-center text-[10px] font-bold" title="${escapeHtml(task.title)} [${escapeHtml(task.subproject_name)}] (Le ${dateStr})">★</div>`;
+                } else if (isStart && task.due_date) {
+                    cellContent = `<div class="w-full h-7 rounded-l-lg ${priorityColor} shadow-sm flex items-center pl-1.5 text-[9px] font-bold" title="${escapeHtml(task.title)} [${escapeHtml(task.subproject_name)}] (Début: ${dateStr})">▶</div>`;
+                } else if (isDue && task.start_date) {
+                    cellContent = `<div class="w-full h-7 rounded-r-lg ${priorityColor} shadow-sm flex items-center justify-end pr-1.5 text-[9px] font-bold" title="${escapeHtml(task.title)} [${escapeHtml(task.subproject_name)}] (Fin: ${dateStr})">■</div>`;
+                } else if (isInRange) {
+                    cellContent = `<div class="w-full h-7 ${priorityColor} opacity-90" title="${escapeHtml(task.title)} [${escapeHtml(task.subproject_name)}]"></div>`;
+                } else if (isStart || isDue) {
+                    cellContent = `<div class="w-full h-7 rounded-lg ${priorityColor} shadow-sm mx-1 flex items-center justify-center text-[10px] font-bold" title="${escapeHtml(task.title)} [${escapeHtml(task.subproject_name)}] (Date: ${dateStr})">★</div>`;
+                }
+
+                rightRowsHtml += `
+                    <div class="h-14 border-r border-[var(--border)] relative flex items-center justify-center ${isToday ? 'bg-blue-500/10' : ''}">
+                        ${cellContent}
+                    </div>
+                `;
+            }
+
+            rightRowsHtml += `</div>`;
+        });
+
+        // 3. Assemblage du conteneur Gantt scindé à volet gauche permanent
+        root.innerHTML = `
+            <div class="rounded-3xl border border-[var(--border)] overflow-hidden adw-card flex w-full">
+                <!-- VOLET GAUCHE : Tâches fixes (toujours visibles, ne défilent jamais horizontalement) -->
+                <div class="w-[280px] shrink-0 border-r border-[var(--border)] bg-[var(--surface)] flex flex-col z-10 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.25)]">
+                    <div class="h-12 p-3 border-b border-[var(--border)] flex items-center justify-between text-xs font-bold text-adw-main adw-card-subtle select-none">
+                        <span>Tâches du projet (${filteredTasks.length})</span>
+                    </div>
+                    <div class="divide-y divide-[var(--border)]">
+                        ${leftRowsHtml}
+                    </div>
+                </div>
+
+                <!-- VOLET DROIT : Calendrier avec défilement horizontal fluide -->
+                <div class="flex-1 overflow-x-auto">
+                    <div class="min-w-max">
+                        <div class="h-12 grid grid-cols-[repeat(${daysInMonth},_minmax(36px,1fr))] border-b border-[var(--border)] text-center text-xs font-bold text-adw-muted adw-card-subtle select-none">
+                            ${daysHeaderHtml}
+                        </div>
+                        <div class="divide-y divide-[var(--border)]">
+                            ${rightRowsHtml}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     document.addEventListener('DOMContentLoaded', () => {

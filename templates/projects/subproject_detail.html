@@ -1545,54 +1545,52 @@
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const todayStr = new Date().toISOString().split('T')[0];
 
-        let html = `
-            <div class="adw-card rounded-3xl overflow-hidden border border-[var(--border)]">
-                <div class="grid grid-cols-[220px_repeat(${daysInMonth},_minmax(32px,1fr))] border-b border-[var(--border)] bg-[var(--surface-subtle)] text-[11px] font-semibold sticky top-0 z-20">
-                    <div class="p-3 border-r border-[var(--border)] text-adw-muted flex items-center justify-between">
-                        <span>Tâches & Statuts</span>
-                        <span class="text-[10px] text-adw-dim font-normal">${tasksGanttData.length}</span>
-                    </div>
-        `;
+        if (tasksGanttData.length === 0) {
+            root.innerHTML = `
+                <div class="adw-card rounded-3xl overflow-hidden border border-[var(--border)] p-12 text-center text-xs text-adw-dim italic">
+                    Aucune tâche planifiée pour ce sous-projet.
+                </div>`;
+            return;
+        }
 
+        // 1. En-tête des jours
+        let daysHeaderHtml = '';
         for (let d = 1; d <= daysInMonth; d++) {
             const dateObj = new Date(year, month, d);
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const isToday = (dateStr === todayStr);
             const dayOfWeek = dateObj.toLocaleDateString('fr-FR', { weekday: 'narrow' });
 
-            html += `
-                <div class="p-1.5 text-center border-r border-[var(--border)] flex flex-col items-center justify-center ${isToday ? 'bg-blue-500/15 text-adw-accent font-bold' : 'text-adw-muted'}">
+            daysHeaderHtml += `
+                <div class="p-1.5 text-center border-r border-[var(--border)] flex flex-col items-center justify-center min-w-[36px] ${isToday ? 'bg-blue-500/15 text-adw-accent font-bold' : 'text-adw-muted'}">
                     <span class="text-[9px] uppercase">${dayOfWeek}</span>
                     <span class="text-xs ${isToday ? 'w-5 h-5 rounded-full bg-[var(--accent)] text-white flex items-center justify-center font-bold' : ''}">${d}</span>
                 </div>
             `;
         }
 
-        html += `</div><div class="divide-y divide-[var(--border)] bg-[var(--surface)]">`;
-
-        if (tasksGanttData.length === 0) {
-            html += `
-                <div class="p-12 text-center text-xs text-adw-dim italic">
-                    Aucune tâche planifiée pour ce sous-projet.
-                </div>
-            `;
-        }
+        // 2. Lignes
+        let leftRowsHtml = '';
+        let rightRowsHtml = '';
 
         tasksGanttData.forEach(task => {
             const priorityColor = task.priority === 'high' ? 'bg-rose-500/85 text-white' : (task.priority === 'medium' ? 'bg-amber-500/85 text-white' : 'bg-blue-500/85 text-white');
             
-            html += `
-                <div class="grid grid-cols-[220px_repeat(${daysInMonth},_minmax(32px,1fr))] items-center hover:bg-[var(--surface-hover)] transition-colors text-xs group">
-                    <div class="p-3 border-r border-[var(--border)] flex items-center justify-between gap-2 overflow-hidden">
-                        <div class="truncate">
-                            <p class="font-bold text-adw-main text-xs truncate" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</p>
-                            <div class="flex items-center gap-1.5 text-[10px] text-adw-dim mt-0.5">
-                                <span>${escapeHtml(task.column_name)}</span>
-                                <span>•</span>
-                                <span>${escapeHtml(task.assigned_name)}</span>
-                            </div>
+            leftRowsHtml += `
+                <div class="h-14 p-3 flex items-center justify-between gap-2 overflow-hidden hover:bg-[var(--surface-hover)] transition-colors">
+                    <div class="truncate">
+                        <p class="font-bold text-adw-main text-xs truncate" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</p>
+                        <div class="flex items-center gap-1.5 text-[10px] text-adw-dim mt-0.5">
+                            <span>${escapeHtml(task.column_name)}</span>
+                            <span>•</span>
+                            <span>${escapeHtml(task.assigned_name)}</span>
                         </div>
                     </div>
+                </div>
+            `;
+
+            rightRowsHtml += `
+                <div class="h-14 grid grid-cols-[repeat(${daysInMonth},_minmax(36px,1fr))] items-center hover:bg-[var(--surface-hover)] transition-colors">
             `;
 
             for (let d = 1; d <= daysInMonth; d++) {
@@ -1606,27 +1604,53 @@
                 let cellContent = '';
 
                 if (isStart && isDue) {
-                    cellContent = `<div class="h-6 rounded-lg ${priorityColor} shadow-sm mx-1 flex items-center justify-center text-[10px] font-bold" title="${escapeHtml(task.title)} (Échéance: ${dateStr})">★</div>`;
-                } else if (isStart) {
-                    cellContent = `<div class="h-6 rounded-l-lg ${priorityColor} shadow-sm ml-1 flex items-center pl-1 text-[9px] font-bold truncate" title="${escapeHtml(task.title)}">▶</div>`;
-                } else if (isDue) {
-                    cellContent = `<div class="h-6 rounded-r-lg ${priorityColor} shadow-sm mr-1 flex items-center justify-end pr-1 text-[9px] font-bold truncate" title="${escapeHtml(task.title)} (Fin: ${dateStr})">■</div>`;
+                    cellContent = `<div class="w-full h-7 rounded-lg ${priorityColor} shadow-sm mx-1 flex items-center justify-center text-[10px] font-bold" title="${escapeHtml(task.title)} (Le ${dateStr})">★</div>`;
+                } else if (isStart && task.due_date) {
+                    cellContent = `<div class="w-full h-7 rounded-l-lg ${priorityColor} shadow-sm flex items-center pl-1.5 text-[9px] font-bold" title="${escapeHtml(task.title)} (Début: ${dateStr})">▶</div>`;
+                } else if (isDue && task.start_date) {
+                    cellContent = `<div class="w-full h-7 rounded-r-lg ${priorityColor} shadow-sm flex items-center justify-end pr-1.5 text-[9px] font-bold" title="${escapeHtml(task.title)} (Fin: ${dateStr})">■</div>`;
                 } else if (isInRange) {
-                    cellContent = `<div class="h-6 ${priorityColor} opacity-75" title="${escapeHtml(task.title)}"></div>`;
+                    cellContent = `<div class="w-full h-7 ${priorityColor} opacity-90" title="${escapeHtml(task.title)}"></div>`;
+                } else if (isStart || isDue) {
+                    cellContent = `<div class="w-full h-7 rounded-lg ${priorityColor} shadow-sm mx-1 flex items-center justify-center text-[10px] font-bold" title="${escapeHtml(task.title)} (Date: ${dateStr})">★</div>`;
                 }
 
-                html += `
-                    <div class="h-12 border-r border-[var(--border)] relative flex items-center justify-center p-0.5 ${isToday ? 'bg-blue-500/5' : ''}">
+                rightRowsHtml += `
+                    <div class="h-14 border-r border-[var(--border)] relative flex items-center justify-center ${isToday ? 'bg-blue-500/10' : ''}">
                         ${cellContent}
                     </div>
                 `;
             }
 
-            html += `</div>`;
+            rightRowsHtml += `</div>`;
         });
 
-        html += `</div></div>`;
-        root.innerHTML = html;
+        root.innerHTML = `
+            <div class="adw-card rounded-3xl overflow-hidden border border-[var(--border)] flex w-full">
+                <!-- VOLET GAUCHE FIXE -->
+                <div class="w-[240px] shrink-0 border-r border-[var(--border)] bg-[var(--surface)] flex flex-col z-10 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.25)]">
+                    <div class="h-12 p-3 border-b border-[var(--border)] text-adw-muted flex items-center justify-between text-[11px] font-semibold select-none">
+                        <span>Tâches & Statuts</span>
+                        <span class="text-[10px] text-adw-dim font-normal">${tasksGanttData.length}</span>
+                    </div>
+                    <div class="divide-y divide-[var(--border)]">
+                        ${leftRowsHtml}
+                    </div>
+                </div>
+
+                <!-- VOLET DROIT DÉFILABLE -->
+                <div class="flex-1 overflow-x-auto">
+                    <div class="min-w-max">
+                        <div class="h-12 grid grid-cols-[repeat(${daysInMonth},_minmax(36px,1fr))] border-b border-[var(--border)] bg-[var(--surface)] text-[11px] font-semibold text-center select-none">
+                            ${daysHeaderHtml}
+                        </div>
+                        <div class="divide-y divide-[var(--border)]">
+                            ${rightRowsHtml}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     // Drag and drop Kanban
