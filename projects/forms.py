@@ -1,99 +1,80 @@
 import os
 from django import forms
-from django.conf import settings
-from .models import Project, SubProject, Task, ProjectCredential, ProjectResource, KanbanColumn
 from django.contrib.auth import get_user_model
+from django.conf import settings
+from .models import Project, SubProject, Task, ProjectCredential, ProjectResource
 
 User = get_user_model()
 
-# Extensions autorisées au téléversement (liste blanche).
-# Les formats exécutables dans un navigateur (svg, html, js...) sont exclus
-# pour empêcher le XSS stocké via fichier servi sur le même domaine.
 ALLOWED_UPLOAD_EXTENSIONS = {
-    'pdf', 'txt', 'csv', 'md', 'rtf',
-    'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp',
-    'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp',
-    'zip', 'tar', 'gz', '7z', 'rar',
+    'pdf', 'png', 'jpg', 'jpeg', 'webp', 'svg', 'gif',
+    'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'txt', 'md',
+    'zip', 'rar', 'tar', 'gz', '7z',
 }
-
-
-class UserModelChoiceField(forms.ModelChoiceField):
-    """Champ de sélection d'un utilisateur unique avec nom complet et email."""
-    def label_from_instance(self, obj):
-        return f"{obj.full_name} ({obj.email})" if obj.full_name != obj.username else f"{obj.username} ({obj.email})"
-
-
-class UserModelMultipleChoiceField(forms.ModelMultipleChoiceField):
-    """Champ de sélection de membres avec affichage du nom complet et de l'email."""
-    def label_from_instance(self, obj):
-        return f"{obj.full_name} ({obj.email})" if obj.full_name != obj.username else f"{obj.username} ({obj.email})"
 
 
 class ProjectForm(forms.ModelForm):
     """
-    Formulaire de création et édition d'un projet principal.
-    Permet de définir le chef de projet et l'équipe affectée.
+    Formulaire de création / édition d'un projet principal.
+    Permet d'assigner un Chef de projet et une équipe de Membres (hors superutilisateurs).
     """
-    manager = UserModelChoiceField(
-        queryset=User.objects.filter(is_active=True, is_superuser=False),
-        required=False,
-        empty_label="-- Aucun (ou définir plus tard) --",
-        label="Chef de projet",
-        widget=forms.Select(attrs={
-            'class': 'w-full px-4 py-3 rounded-2xl text-sm adw-input cursor-pointer',
-        })
-    )
-
-    members = UserModelMultipleChoiceField(
-        queryset=User.objects.filter(is_active=True, is_superuser=False),
-        required=False,
-        label="Membres assignés",
-        widget=forms.CheckboxSelectMultiple
-    )
-
     class Meta:
         model = Project
         fields = ['name', 'description', 'manager', 'members']
         widgets = {
             'name': forms.TextInput(attrs={
-                'class': 'w-full px-4 py-3 rounded-2xl text-sm adw-input',
-                'placeholder': 'ex: Arrera Assistant OS',
-                'autofocus': True,
+                'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
+                'placeholder': 'ex: Refonte Site Arrera 2026',
                 'required': True,
             }),
             'description': forms.Textarea(attrs={
-                'class': 'w-full px-4 py-3 rounded-2xl text-sm adw-input',
-                'placeholder': 'Description globale et objectifs du projet...',
-                'rows': 4,
+                'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
+                'placeholder': 'Objectifs du projet, périmètre, planning...',
+                'rows': 3,
+            }),
+            'manager': forms.Select(attrs={
+                'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input cursor-pointer',
+            }),
+            'members': forms.CheckboxSelectMultiple(attrs={
+                'class': 'space-y-2',
             }),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Exclure les superutilisateurs de la sélection de chef de projet et des membres
+        active_non_superusers = User.objects.filter(is_active=True, is_superuser=False).order_by('first_name', 'username')
+        self.fields['manager'].queryset = active_non_superusers
+        self.fields['manager'].empty_label = "— Aucun chef de projet désigné —"
+        self.fields['manager'].required = False
+        self.fields['members'].queryset = active_non_superusers
+        self.fields['members'].required = False
+
 
 class SubProjectForm(forms.ModelForm):
-    """Formulaire de création et édition d'un sous-projet."""
+    """Formulaire de création d'un sous-projet."""
     class Meta:
         model = SubProject
         fields = ['name', 'description']
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
-                'placeholder': 'ex: Interface Graphique, Backend API, Module Sécurité...',
-                'autofocus': True,
+                'placeholder': 'ex: Frontend, API Backend, Documentation...',
                 'required': True,
             }),
             'description': forms.Textarea(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
-                'placeholder': 'Description du sous-projet...',
+                'placeholder': 'Description du périmètre du sous-projet...',
                 'rows': 3,
             }),
         }
 
 
 class TaskForm(forms.ModelForm):
-    """Formulaire d'ajout ou modification d'une tâche avec dates de début et deadline."""
+    """Formulaire d'ajout ou modification d'une tâche avec dates de début, deadline et dépendances."""
     class Meta:
         model = Task
-        fields = ['title', 'description', 'assigned_to', 'priority', 'start_date', 'due_date']
+        fields = ['title', 'description', 'assigned_to', 'priority', 'start_date', 'due_date', 'dependencies']
         widgets = {
             'title': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
@@ -119,6 +100,9 @@ class TaskForm(forms.ModelForm):
                 'type': 'date',
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
             }),
+            'dependencies': forms.CheckboxSelectMultiple(attrs={
+                'class': 'space-y-1.5',
+            }),
         }
 
     def __init__(self, *args, subproject=None, **kwargs):
@@ -128,6 +112,13 @@ class TaskForm(forms.ModelForm):
             manager_qs = User.objects.filter(id=project.manager_id, is_active=True, is_superuser=False) if project.manager_id else User.objects.none()
             self.fields['assigned_to'].queryset = (project.members.filter(is_active=True, is_superuser=False) | manager_qs).distinct()
             self.fields['assigned_to'].required = False
+
+            # Dépendances ouvertes à l'ensemble des tâches du projet (tous sous-projets confondus)
+            tasks_qs = Task.objects.filter(column__subproject__project=project).select_related('subproject', 'column')
+            if self.instance and self.instance.pk:
+                tasks_qs = tasks_qs.exclude(pk=self.instance.pk)
+            self.fields['dependencies'].queryset = tasks_qs
+            self.fields['dependencies'].required = False
 
 
 class ProjectCredentialForm(forms.ModelForm):
@@ -143,7 +134,7 @@ class ProjectCredentialForm(forms.ModelForm):
             'placeholder': 'Mot de passe ou clé secrète',
             'render_value': False,
             'required': True,
-        })
+        }),
     )
 
     class Meta:
@@ -152,21 +143,21 @@ class ProjectCredentialForm(forms.ModelForm):
         widgets = {
             'title': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
-                'placeholder': 'ex: Serveur SSH Production, Base PostgreSQL...',
+                'placeholder': 'ex: Compte Cloud AWS Prod, Accès SSH, BDD...',
                 'required': True,
             }),
             'service_url': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
-                'placeholder': 'https://admin.exemple.com ou vps.arrera.local',
+                'placeholder': 'ex: https://aws.amazon.com ou ssh.mondomaine.fr',
             }),
             'username': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
-                'placeholder': 'Identifiant / Login / Utilisateur',
+                'placeholder': 'ex: admin, deploy@serveur.com...',
             }),
             'notes': forms.Textarea(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
-                'placeholder': 'Notes supplémentaires, ports, certificats...',
-                'rows': 3,
+                'placeholder': 'Consignes de sécurité, rotation, ports...',
+                'rows': 2,
             }),
         }
 
@@ -185,13 +176,17 @@ class ProjectResourceForm(forms.ModelForm):
     Permet à l'utilisateur de charger directement des fichiers (PDF, ZIP, images...)
     ou d'ajouter un lien externe (Google Docs, Figma, GitHub...).
     """
+    entry_type = forms.ChoiceField(
+        choices=[('file', 'Fichier'), ('url', 'Lien web')],
+        initial='file',
+        widget=forms.RadioSelect(attrs={'class': 'hidden'}),
+        required=False
+    )
+
     class Meta:
         model = ProjectResource
-        fields = ['entry_type', 'title', 'file', 'url', 'resource_type', 'description']
+        fields = ['title', 'file', 'url', 'resource_type', 'description']
         widgets = {
-            'entry_type': forms.RadioSelect(attrs={
-                'class': 'hidden',
-            }),
             'title': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
                 'placeholder': 'ex: Cahier des charges, Maquettes Figma, Spécifications v1...',
@@ -238,18 +233,10 @@ class ProjectResourceForm(forms.ModelForm):
         entry_type = cleaned_data.get('entry_type') or 'file'
         uploaded_file = cleaned_data.get('file')
         url = cleaned_data.get('url')
-        title = cleaned_data.get('title')
 
-        if entry_type == 'file':
-            if not uploaded_file and not self.instance.file:
-                raise forms.ValidationError({'file': "Veuillez sélectionner un fichier à téléverser."})
-            # Si le titre est vide, utiliser le nom du fichier par défaut
-            if not title and uploaded_file:
-                cleaned_data['title'] = os.path.basename(uploaded_file.name)
-        elif entry_type == 'url':
-            if not url:
-                raise forms.ValidationError({'url': "Veuillez renseigner un lien URL valide."})
-            if not title:
-                cleaned_data['title'] = url
+        if entry_type == 'file' and not uploaded_file:
+            raise forms.ValidationError("Veuillez sélectionner un fichier à téléverser.")
+        if entry_type == 'url' and not url:
+            raise forms.ValidationError("Veuillez saisir une URL valide.")
 
         return cleaned_data

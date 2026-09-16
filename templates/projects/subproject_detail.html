@@ -145,15 +145,16 @@
     <!-- CONTENU ONGLET 1 : GÉNÉRAL (KANBAN COMPLET)                       -->
     <!-- ================================================================= -->
     <div id="tab-content-general" class="tab-pane flex-1">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {% for col in columns %}
             <div class="rounded-3xl p-5 adw-card flex flex-col kanban-column" data-column-id="{{ col.id }}">
                 
                 <div class="flex items-center justify-between mb-4 pb-3 border-b border-[var(--border)]">
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full 
-                            {% if forloop.counter == 1 %}bg-blue-500
-                            {% elif forloop.counter == 2 %}bg-amber-500
+                            {% if col.name|lower == 'en attente' %}bg-amber-500
+                            {% elif col.name|lower == 'à faire' %}bg-blue-500
+                            {% elif col.name|lower == 'en cours' %}bg-purple-500
                             {% else %}bg-emerald-500{% endif %}">
                         </span>
                         <h3 class="text-sm font-bold text-adw-main">{{ col.name }}</h3>
@@ -165,27 +166,39 @@
 
                 <div class="space-y-3 flex-1 overflow-y-auto max-h-[calc(100vh-320px)] p-1 task-dropzone" 
                      id="dropzone-{{ col.id }}"
+                     data-col-name="{{ col.name|lower }}"
+                     {% if col.name|lower != 'en attente' %}
                      ondragover="onDragOver(event)" 
-                     ondrop="onDrop(event, '{{ col.id }}')">
+                     ondrop="onDrop(event, '{{ col.id }}')"
+                     {% endif %}>
                     
                     {% for task in col.tasks.all %}
-                    <div class="rounded-2xl p-4 adw-card-subtle hover:border-[var(--accent)] transition-all {% if is_admin or task.assigned_to_id == request.user.id %}cursor-grab active:cursor-grabbing{% else %}cursor-default{% endif %} group shadow-sm"
-                         draggable="{% if is_admin or task.assigned_to_id == request.user.id %}true{% else %}false{% endif %}" 
+                    <div class="rounded-2xl p-4 adw-card-subtle hover:border-[var(--accent)] transition-all {% if task.has_unmet_dependencies %}cursor-not-allowed opacity-90 border-dashed border-amber-500/40{% elif is_admin or task.assigned_to_id == request.user.id %}cursor-grab active:cursor-grabbing{% else %}cursor-default{% endif %} group shadow-sm"
+                         draggable="{% if not task.has_unmet_dependencies and is_admin or not task.has_unmet_dependencies and task.assigned_to_id == request.user.id %}true{% else %}false{% endif %}" 
                          id="task-{{ task.id }}"
+                         data-blocked="{% if task.has_unmet_dependencies %}true{% else %}false{% endif %}"
                          ondragstart="onDragStart(event, '{{ task.id }}')">
                         
                         <div class="flex items-start justify-between gap-2 mb-2">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider
-                                {% if task.priority == 'high' %}bg-rose-500/15 text-rose-400 border border-rose-500/20
-                                {% elif task.priority == 'medium' %}bg-amber-500/15 text-amber-400 border border-amber-500/20
-                                {% else %}bg-blue-500/15 text-blue-400 border border-blue-500/20{% endif %}">
-                                {{ task.get_priority_display }}
-                            </span>
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider
+                                    {% if task.priority == 'high' %}bg-rose-500/15 text-rose-400 border border-rose-500/20
+                                    {% elif task.priority == 'medium' %}bg-amber-500/15 text-amber-400 border border-amber-500/20
+                                    {% else %}bg-blue-500/15 text-blue-400 border border-blue-500/20{% endif %}">
+                                    {{ task.get_priority_display }}
+                                </span>
+                                {% if task.has_unmet_dependencies %}
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/20" title="Bloquée par : {% for dep in task.get_unmet_dependencies %}{{ dep.title }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                                    <i class="ph-bold ph-lock-key text-[10px]"></i>
+                                    Bloquée
+                                </span>
+                                {% endif %}
+                            </div>
 
                             <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {% if is_admin or task.assigned_to_id == request.user.id %}
+                                {% if is_admin or not task.has_unmet_dependencies and task.assigned_to_id == request.user.id %}
                                 <button type="button" 
-                                        onclick="openEditTaskModal({{ task.id }}, '{{ task.title|escapejs }}', '{{ task.description|escapejs }}', '{{ task.priority }}', '{{ task.assigned_to_id|default:'' }}', '{{ task.assigned_to.full_name|default:''|escapejs }}', '{{ task.assigned_to.email|default:''|escapejs }}', '{{ task.assigned_to.first_name|first|default:task.assigned_to.username|first|upper|default:'' }}', '{{ task.start_date|date:'Y-m-d'|default:'' }}', '{{ task.due_date|date:'Y-m-d'|default:'' }}', {% if is_admin %}true{% else %}false{% endif %})" 
+                                        onclick="openEditTaskModal({{ task.id }}, '{{ task.title|escapejs }}', '{{ task.description|escapejs }}', '{{ task.priority }}', '{{ task.assigned_to_id|default:'' }}', '{{ task.assigned_to.full_name|default:''|escapejs }}', '{{ task.assigned_to.email|default:''|escapejs }}', '{{ task.assigned_to.first_name|first|default:task.assigned_to.username|first|upper|default:'' }}', '{{ task.start_date|date:'Y-m-d'|default:'' }}', '{{ task.due_date|date:'Y-m-d'|default:'' }}', {% if is_admin %}true{% else %}false{% endif %}, [{% for dep in task.dependencies.all %}{{ dep.id }}{% if not forloop.last %},{% endif %}{% endfor %}])" 
                                         class="text-adw-dim hover:text-adw-accent transition-colors p-0.5 cursor-pointer" 
                                         title="Modifier la tâche">
                                     <i class="ph ph-pencil-simple text-xs"></i>
@@ -234,8 +247,12 @@
 
                     </div>
                     {% empty %}
-                    <div class="h-28 rounded-2xl border border-dashed border-[var(--border)] flex items-center justify-center text-xs text-adw-dim italic">
+                    <div class="h-28 rounded-2xl border border-dashed border-[var(--border)] flex items-center justify-center text-xs text-adw-dim italic text-center p-3">
+                        {% if col.name|lower == 'en attente' %}
+                        Aucune tâche en attente<br><span class="text-[10px] opacity-75 font-normal">(Géré automatiquement par les dépendances)</span>
+                        {% else %}
                         Glisser une tâche ici
+                        {% endif %}
                     </div>
                     {% endfor %}
 
@@ -250,15 +267,16 @@
     <!-- CONTENU ONGLET 2 : PERSONNEL (TÂCHES DE L'UTILISATEUR)             -->
     <!-- ================================================================= -->
     <div id="tab-content-personal" class="tab-pane hidden flex-1">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {% for col in columns %}
             <div class="rounded-3xl p-5 adw-card flex flex-col">
                 
                 <div class="flex items-center justify-between mb-4 pb-3 border-b border-[var(--border)]">
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full 
-                            {% if forloop.counter == 1 %}bg-blue-500
-                            {% elif forloop.counter == 2 %}bg-amber-500
+                            {% if col.name|lower == 'en attente' %}bg-amber-500
+                            {% elif col.name|lower == 'à faire' %}bg-blue-500
+                            {% elif col.name|lower == 'en cours' %}bg-purple-500
                             {% else %}bg-emerald-500{% endif %}">
                         </span>
                         <h3 class="text-sm font-bold text-adw-main">{{ col.name }}</h3>
@@ -270,20 +288,30 @@
                         {% if task.assigned_to == request.user %}
                         <div class="rounded-2xl p-4 adw-card-subtle border-l-4 border-l-[var(--accent)] group shadow-sm">
                             <div class="flex items-start justify-between gap-2 mb-2">
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider
-                                    {% if task.priority == 'high' %}bg-rose-500/15 text-rose-400 border border-rose-500/20
-                                    {% elif task.priority == 'medium' %}bg-amber-500/15 text-amber-400 border border-amber-500/20
-                                    {% else %}bg-blue-500/15 text-blue-400 border border-blue-500/20{% endif %}">
-                                    {{ task.get_priority_display }}
-                                </span>
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider
+                                        {% if task.priority == 'high' %}bg-rose-500/15 text-rose-400 border border-rose-500/20
+                                        {% elif task.priority == 'medium' %}bg-amber-500/15 text-amber-400 border border-amber-500/20
+                                        {% else %}bg-blue-500/15 text-blue-400 border border-blue-500/20{% endif %}">
+                                        {{ task.get_priority_display }}
+                                    </span>
+                                    {% if task.has_unmet_dependencies %}
+                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/20" title="Bloquée par : {% for dep in task.get_unmet_dependencies %}{{ dep.title }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                                        <i class="ph-bold ph-lock-key text-[10px]"></i>
+                                        Bloquée
+                                    </span>
+                                    {% endif %}
+                                </div>
 
                                 <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {% if is_admin or not task.has_unmet_dependencies %}
                                     <button type="button" 
-                                            onclick="openEditTaskModal({{ task.id }}, '{{ task.title|escapejs }}', '{{ task.description|escapejs }}', '{{ task.priority }}', '{{ task.assigned_to_id|default:'' }}', '{{ task.assigned_to.full_name|default:''|escapejs }}', '{{ task.assigned_to.email|default:''|escapejs }}', '{{ task.assigned_to.first_name|first|default:task.assigned_to.username|first|upper|default:'' }}', '{{ task.start_date|date:'Y-m-d'|default:'' }}', '{{ task.due_date|date:'Y-m-d'|default:'' }}', {% if is_admin %}true{% else %}false{% endif %})" 
+                                            onclick="openEditTaskModal({{ task.id }}, '{{ task.title|escapejs }}', '{{ task.description|escapejs }}', '{{ task.priority }}', '{{ task.assigned_to_id|default:'' }}', '{{ task.assigned_to.full_name|default:''|escapejs }}', '{{ task.assigned_to.email|default:''|escapejs }}', '{{ task.assigned_to.first_name|first|default:task.assigned_to.username|first|upper|default:'' }}', '{{ task.start_date|date:'Y-m-d'|default:'' }}', '{{ task.due_date|date:'Y-m-d'|default:'' }}', {% if is_admin %}true{% else %}false{% endif %}, [{% for dep in task.dependencies.all %}{{ dep.id }}{% if not forloop.last %},{% endif %}{% endfor %}])" 
                                             class="text-adw-dim hover:text-adw-accent transition-colors p-0.5 cursor-pointer" 
                                             title="Modifier la tâche">
                                         <i class="ph ph-pencil-simple text-xs"></i>
                                     </button>
+                                    {% endif %}
                                     {% if is_admin %}
                                     <form method="post" action="{% url 'projects:task_delete' task_id=task.id %}" class="inline m-0">
                                         {% csrf_token %}
@@ -810,6 +838,33 @@
                 {{ task_form.description }}
             </div>
 
+            {% if all_project_tasks %}
+            <div>
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">
+                    Tâches préalables requises (Dépendances)
+                    <span class="text-[10px] text-adw-muted font-normal block">Sélectionnez des tâches du projet (tous sous-projets). Si non terminées, la tâche sera « En attente ».</span>
+                </label>
+                <div class="max-h-36 overflow-y-auto rounded-2xl border border-[var(--border)] adw-card-subtle p-2 space-y-1">
+                    {% for st in all_project_tasks %}
+                    <label class="flex items-center gap-2 p-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer text-xs select-none">
+                        <input type="checkbox" name="dependencies" value="{{ st.id }}" class="rounded text-[var(--accent)] focus:ring-0">
+                        <div class="min-w-0 flex-1">
+                            <span class="text-adw-main font-medium block truncate">{{ st.title }}</span>
+                            <span class="text-[10px] text-adw-dim block truncate">Sous-projet : {{ st.subproject.name }}</span>
+                        </div>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold shrink-0
+                            {% if st.column.name|lower == 'terminé' %}bg-emerald-500/15 text-emerald-400
+                            {% elif st.column.name|lower == 'en cours' %}bg-purple-500/15 text-purple-400
+                            {% elif st.column.name|lower == 'en attente' %}bg-amber-500/15 text-amber-400
+                            {% else %}bg-blue-500/15 text-blue-400{% endif %}">
+                            {{ st.column.name }}
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
             <div class="pt-4 flex items-center justify-end gap-3 border-t border-[var(--border)]">
                 <button type="button" onclick="closeModal('task-modal')" class="px-4 py-2 rounded-2xl text-xs font-semibold text-adw-muted hover:text-adw-main cursor-pointer">
                     Annuler
@@ -905,6 +960,33 @@
                 <label class="block text-xs font-semibold mb-1.5 text-adw-main">Description détaillée</label>
                 <textarea name="description" id="edit-task-description" rows="3" class="w-full px-4 py-2.5 rounded-2xl text-sm adw-input" placeholder="Détails, spécifications..."></textarea>
             </div>
+
+            {% if all_project_tasks %}
+            <div id="edit-task-deps-group">
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">
+                    Tâches préalables requises (Dépendances)
+                    <span class="text-[10px] text-adw-muted font-normal block">Tâches du projet devant être terminées avant de commencer celle-ci.</span>
+                </label>
+                <div class="max-h-36 overflow-y-auto rounded-2xl border border-[var(--border)] adw-card-subtle p-2 space-y-1" id="edit-task-deps-container">
+                    {% for st in all_project_tasks %}
+                    <label class="flex items-center gap-2 p-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer text-xs select-none edit-dep-item" data-task-id="{{ st.id }}">
+                        <input type="checkbox" name="dependencies" value="{{ st.id }}" class="edit-task-dep-checkbox rounded text-[var(--accent)] focus:ring-0">
+                        <div class="min-w-0 flex-1">
+                            <span class="text-adw-main font-medium block truncate">{{ st.title }}</span>
+                            <span class="text-[10px] text-adw-dim block truncate">Sous-projet : {{ st.subproject.name }}</span>
+                        </div>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold shrink-0
+                            {% if st.column.name|lower == 'terminé' %}bg-emerald-500/15 text-emerald-400
+                            {% elif st.column.name|lower == 'en cours' %}bg-purple-500/15 text-purple-400
+                            {% elif st.column.name|lower == 'en attente' %}bg-amber-500/15 text-amber-400
+                            {% else %}bg-blue-500/15 text-blue-400{% endif %}">
+                            {{ st.column.name }}
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
 
             <div class="pt-4 flex items-center justify-end gap-3 border-t border-[var(--border)]">
                 <button type="button" onclick="closeModal('edit-task-modal')" class="px-4 py-2 rounded-2xl text-xs font-semibold text-adw-muted hover:text-adw-main cursor-pointer">
@@ -1255,7 +1337,7 @@
         closeModal('user-picker-modal');
     }
 
-    function openEditTaskModal(taskId, title, description, priority, assignedId, assignedName, assignedEmail, avatarInitial, startDate, dueDate, canFullEdit) {
+    function openEditTaskModal(taskId, title, description, priority, assignedId, assignedName, assignedEmail, avatarInitial, startDate, dueDate, canFullEdit, depIds = []) {
         const form = document.getElementById('edit-task-form');
         if (form) form.action = '/projets/tasks/' + taskId + '/edit/';
 
@@ -1331,6 +1413,23 @@
 
         const descInput = document.getElementById('edit-task-description');
         if (descInput) descInput.value = description || '';
+
+        // Gestion des cases à cocher des dépendances
+        const depCheckboxes = document.querySelectorAll('.edit-task-dep-checkbox');
+        depCheckboxes.forEach(cb => {
+            const val = parseInt(cb.value);
+            cb.checked = depIds.includes(val);
+            cb.disabled = !canFullEdit;
+            // Masquer la tâche elle-même de la liste de ses dépendances
+            const item = cb.closest('.edit-dep-item');
+            if (item) {
+                if (val === taskId) {
+                    item.classList.add('hidden');
+                } else {
+                    item.classList.remove('hidden');
+                }
+            }
+        });
 
         openModal('edit-task-modal');
     }
@@ -1534,6 +1633,11 @@
     let draggedTaskId = null;
 
     function onDragStart(event, taskId) {
+        const el = document.getElementById('task-' + taskId);
+        if (el && el.getAttribute('data-blocked') === 'true') {
+            event.preventDefault();
+            return false;
+        }
         draggedTaskId = taskId;
         event.dataTransfer.setData('text/plain', taskId);
         event.target.classList.add('opacity-50');
@@ -1546,6 +1650,10 @@
 
     function onDrop(event, columnId) {
         event.preventDefault();
+        const dropzone = document.getElementById('dropzone-' + columnId);
+        if (dropzone && dropzone.getAttribute('data-col-name') === 'en attente') {
+            return;
+        }
         const taskId = draggedTaskId || event.dataTransfer.getData('text/plain');
         if (!taskId) return;
 

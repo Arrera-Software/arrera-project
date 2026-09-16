@@ -17,6 +17,23 @@ User = get_user_model()
 credential_logger = logging.getLogger('projects.credentials')
 
 
+def ensure_subproject_columns(subproject):
+    """Garantit l'existence des 4 colonnes standard dans le bon ordre."""
+    standard_cols = [
+        ("En attente", 1),
+        ("À faire", 2),
+        ("En cours", 3),
+        ("Terminé", 4),
+    ]
+    for name, order in standard_cols:
+        col = subproject.columns.filter(name__iexact=name).first()
+        if not col:
+            KanbanColumn.objects.create(subproject=subproject, name=name, order=order)
+        elif col.order != order:
+            col.order = order
+            col.save(update_fields=['order'])
+
+
 def check_project_access(user, project):
     """
     Vérifie si l'utilisateur a le droit d'accéder au projet.
@@ -158,7 +175,7 @@ def project_detail_view(request, slug):
     # Récupération de l'ensemble des tâches de tous les sous-projets
     all_tasks = Task.objects.filter(column__subproject__project=project).select_related(
         'column__subproject', 'column', 'assigned_to', 'created_by'
-    ).order_by('column__order', 'due_date', '-created_at')
+    ).prefetch_related('dependencies').order_by('column__order', 'due_date', '-created_at')
 
     total_tasks_count = all_tasks.count()
     personal_tasks_count = all_tasks.filter(assigned_to=request.user).count()
@@ -167,7 +184,7 @@ def project_detail_view(request, slug):
     active_tab = request.GET.get('tab', 'home')
 
     # Regroupement des tâches dans les colonnes Kanban globales
-    standard_column_names = ["À faire", "En cours", "Terminé"]
+    standard_column_names = ["En attente", "À faire", "En cours", "Terminé"]
     existing_column_names = list(
         KanbanColumn.objects.filter(subproject__project=project)
         .values_list('name', flat=True)
@@ -225,10 +242,8 @@ def subproject_create_view(request, project_slug):
         subproject.project = project
         subproject.save()
 
-        # Création des colonnes Kanban par défaut
-        KanbanColumn.objects.create(subproject=subproject, name="À faire", order=1)
-        KanbanColumn.objects.create(subproject=subproject, name="En cours", order=2)
-        KanbanColumn.objects.create(subproject=subproject, name="Terminé", order=3)
+        # Création des colonnes Kanban standard avec "En attente"
+        ensure_subproject_columns(subproject)
 
         messages.success(request, f"Sous-projet « {subproject.name} » créé avec succès.")
         return redirect('projects:subproject_detail', project_slug=project.slug, subproject_slug=subproject.slug)
@@ -252,7 +267,11 @@ def subproject_detail_view(request, project_slug, subproject_slug):
         raise PermissionDenied("Vous n'êtes pas affecté à ce projet.")
 
     subproject = get_object_or_404(SubProject, project=project, slug=subproject_slug)
-    columns = subproject.columns.prefetch_related('tasks__assigned_to').all()
+    
+    # Garantir les 4 colonnes Kanban
+    ensure_subproject_columns(subproject)
+
+    columns = subproject.columns.prefetch_related('tasks__assigned_to', 'tasks__dependencies__column').order_by('order').all()
 
     is_admin = is_project_manager_or_admin(request.user, project)
 
@@ -276,7 +295,8 @@ def subproject_detail_view(request, project_slug, subproject_slug):
     sibling_subprojects = project.subprojects.all()
 
     # Compteurs pour les badges d'onglets
-    all_sub_tasks = Task.objects.filter(column__subproject=subproject).select_related('assigned_to', 'column')
+    all_sub_tasks = Task.objects.filter(column__subproject=subproject).select_related('assigned_to', 'column').prefetch_related('dependencies__column').order_by('created_at')
+    all_project_tasks = Task.objects.filter(column__subproject__project=project).select_related('subproject', 'column').order_by('subproject__name', 'created_at')
     total_tasks_count = all_sub_tasks.count()
     personal_tasks_count = all_sub_tasks.filter(assigned_to=request.user).count()
     resources_count = subproject_resources.count()
@@ -291,6 +311,8 @@ def subproject_detail_view(request, project_slug, subproject_slug):
         
         assigned_name = t.assigned_to.first_name if (t.assigned_to and t.assigned_to.first_name) else (t.assigned_to.username if t.assigned_to else "Non assigné")
         assigned_avatar = (t.assigned_to.first_name[0] if t.assigned_to and t.assigned_to.first_name else (t.assigned_to.username[0] if t.assigned_to else "?")).upper()
+
+        dep_ids = list(t.dependencies.values_list('id', flat=True))
 
         tasks_gantt_data.append({
             'id': t.id,
@@ -307,6 +329,8 @@ def subproject_detail_view(request, project_slug, subproject_slug):
             'assigned_name': (t.assigned_to.full_name if t.assigned_to else "Non assigné"),
             'assigned_email': (t.assigned_to.email if t.assigned_to else ""),
             'assigned_avatar': assigned_avatar,
+            'is_blocked': t.has_unmet_dependencies(),
+            'dependencies': dep_ids,
         })
 
     return render(request, 'projects/subproject_detail.html', {
@@ -319,6 +343,8 @@ def subproject_detail_view(request, project_slug, subproject_slug):
         'parent_resources': parent_resources,
         'task_form': task_form,
         'assignable_users': assignable_users,
+        'all_subproject_tasks': all_sub_tasks,
+        'all_project_tasks': all_project_tasks,
         'credential_form': credential_form,
         'resource_form': resource_form,
         'edit_subproject_form': edit_subproject_form,
@@ -384,12 +410,13 @@ def subproject_delete_view(request, project_slug, subproject_slug):
 @login_required
 @require_POST
 def task_create_view(request, project_slug, subproject_slug):
-    """Création d'une tâche dans le sous-projet."""
+    """Création d'une tâche dans le sous-projet avec gestion des dépendances."""
     project = get_object_or_404(Project, slug=project_slug)
     if not check_project_access(request.user, project):
         raise PermissionDenied("Accès refusé.")
 
     subproject = get_object_or_404(SubProject, project=project, slug=subproject_slug)
+    ensure_subproject_columns(subproject)
 
     form = TaskForm(request.POST, subproject=subproject)
     if form.is_valid():
@@ -397,16 +424,20 @@ def task_create_view(request, project_slug, subproject_slug):
         task.subproject = subproject
         task.created_by = request.user
 
-        # Assigner par défaut dans la colonne "À faire"
-        todo_column = subproject.columns.filter(name__iexact="À faire").first()
-        if not todo_column:
-            todo_column = subproject.columns.order_by('order').first()
-        if not todo_column:
-            todo_column = KanbanColumn.objects.create(subproject=subproject, name="À faire", order=1)
-
-        task.column = todo_column
+        # Colonne temporaire valide pour la sauvegarde initiale
+        todo_col = subproject.columns.filter(name__iexact="À faire").first()
+        task.column = todo_col
         task.save()
-        messages.success(request, f"Tâche « {task.title} » ajoutée avec succès.")
+        form.save_m2m()  # Enregistre les dépendances sélectionnées
+
+        # Vérification des dépendances pour le placement dans "En attente" ou "À faire"
+        if task.has_unmet_dependencies():
+            waiting_col = subproject.columns.filter(name__iexact="En attente").first()
+            task.column = waiting_col
+            task.save(update_fields=['column'])
+            messages.info(request, f"Tâche « {task.title} » ajoutée. Elle est placée « En attente » car elle requiert des tâches préalables non terminées.")
+        else:
+            messages.success(request, f"Tâche « {task.title} » ajoutée avec succès.")
     else:
         messages.error(request, "Erreur lors de la création de la tâche.")
 
@@ -417,7 +448,7 @@ def task_create_view(request, project_slug, subproject_slug):
 @login_required
 @require_POST
 def task_edit_view(request, task_id):
-    """Modification d'une tâche existante."""
+    """Modification d'une tâche existante et recalcule de ses dépendances."""
     task = get_object_or_404(Task, id=task_id)
     subproject = task.column.subproject
     project = subproject.project
@@ -428,6 +459,10 @@ def task_edit_view(request, task_id):
     is_manager_or_admin = is_project_manager_or_admin(request.user, project)
     is_assigned = (task.assigned_to_id == request.user.id)
 
+    # Si la tâche dépend de prérequis non terminés, seul le chef de projet ou l'administrateur peut la modifier
+    if task.has_unmet_dependencies() and not is_manager_or_admin:
+        raise PermissionDenied("Seul le chef de projet ou l'administrateur est autorisé à modifier une tâche ayant des dépendances non terminées.")
+
     # Seuls l'administrateur, le chef de projet et l'utilisateur assigné peuvent modifier
     if not (is_manager_or_admin or is_assigned):
         raise PermissionDenied("Vous n'avez pas l'autorisation de modifier cette tâche.")
@@ -436,7 +471,22 @@ def task_edit_view(request, task_id):
         # Administrateur et Chef de projet : modification complète autorisée
         form = TaskForm(request.POST, instance=task, subproject=subproject)
         if form.is_valid():
-            form.save()
+            task = form.save()
+
+            # Mise à jour de la colonne si les dépendances changent
+            if task.has_unmet_dependencies():
+                if task.column.name.strip().lower() != "en attente":
+                    waiting_col = subproject.columns.filter(name__iexact="En attente").first()
+                    if waiting_col:
+                        task.column = waiting_col
+                        task.save(update_fields=['column'])
+            else:
+                if task.column.name.strip().lower() == "en attente":
+                    todo_col = subproject.columns.filter(name__iexact="À faire").first()
+                    if todo_col:
+                        task.column = todo_col
+                        task.save(update_fields=['column'])
+
             messages.success(request, f"Tâche « {task.title} » modifiée avec succès.")
         else:
             messages.error(request, "Erreur lors de la modification de la tâche.")
@@ -460,7 +510,7 @@ def task_edit_view(request, task_id):
 @login_required
 @require_POST
 def task_move_view(request, task_id):
-    """Déplacement d'une tâche d'une colonne Kanban à une autre (drag-and-drop ou sélecteur)."""
+    """Déplacement d'une tâche d'une colonne Kanban à une autre avec déblocage automatique en cascade."""
     task = get_object_or_404(Task, id=task_id)
     project = task.column.subproject.project
 
@@ -476,8 +526,44 @@ def task_move_view(request, task_id):
 
     column_id = request.POST.get('column_id')
     new_column = get_object_or_404(KanbanColumn, id=column_id, subproject=task.column.subproject)
+
+    # 1. Interdiction stricte de déplacer manuellement une tâche vers "En attente"
+    if new_column.name.strip().lower() == "en attente":
+        messages.error(request, "La colonne « En attente » est gérée automatiquement par le système de dépendances.")
+        return redirect('projects:subproject_detail', project_slug=project.slug, subproject_slug=task.column.subproject.slug)
+
+    # 2. Bloquer le déplacement si la tâche a des dépendances non terminées
+    if task.has_unmet_dependencies():
+        messages.error(request, f"La tâche « {task.title} » est bloquée tant que ses tâches préalables ne sont pas terminées.")
+        return redirect('projects:subproject_detail', project_slug=project.slug, subproject_slug=task.column.subproject.slug)
+
+    old_col_name = task.column.name.strip().lower()
+    new_col_name = new_column.name.strip().lower()
+
     task.column = new_column
-    task.save()
+    task.save(update_fields=['column'])
+
+    # Si la tâche est passée dans "Terminé" :
+    # Débloquer automatiquement les tâches dépendantes dont TOUTES les dépendances sont maintenant terminées
+    if new_col_name == "terminé":
+        for dep_task in task.dependent_tasks.all():
+            if not dep_task.has_unmet_dependencies() and dep_task.column.name.strip().lower() == "en attente":
+                todo_col = dep_task.subproject.columns.filter(name__iexact="À faire").first()
+                if todo_col:
+                    dep_task.column = todo_col
+                    dep_task.save(update_fields=['column'])
+                    messages.info(request, f"La tâche « {dep_task.title} » a été débloquée et déplacée dans « À faire » !")
+
+    # Si la tâche était "Terminé" et qu'on la sort de "Terminé" :
+    # Remettre "En attente" les tâches qui dépendent d'elle
+    elif old_col_name == "terminé":
+        for dep_task in task.dependent_tasks.all():
+            if dep_task.has_unmet_dependencies() and dep_task.column.name.strip().lower() != "en attente":
+                waiting_col = dep_task.subproject.columns.filter(name__iexact="En attente").first()
+                if waiting_col:
+                    dep_task.column = waiting_col
+                    dep_task.save(update_fields=['column'])
+                    messages.warning(request, f"La tâche « {dep_task.title} » a été replacée « En attente » car une de ses tâches préalables n'est plus terminée.")
 
     return redirect('projects:subproject_detail', project_slug=project.slug, subproject_slug=task.column.subproject.slug)
 
@@ -493,7 +579,18 @@ def task_delete_view(request, task_id):
     if not is_project_manager_or_admin(request.user, project):
         raise PermissionDenied("Seul le chef de projet ou l'administrateur peut supprimer une tâche.")
 
+    # Avant suppression, vérifier si des tâches dépendaient d'elle
+    dep_tasks = list(task.dependent_tasks.all())
     task.delete()
+
+    # Débloquer les tâches dépendantes si elles n'ont plus d'autres dépendances non terminées
+    for dep_task in dep_tasks:
+        if not dep_task.has_unmet_dependencies() and dep_task.column.name.strip().lower() == "en attente":
+            todo_col = dep_task.subproject.columns.filter(name__iexact="À faire").first()
+            if todo_col:
+                dep_task.column = todo_col
+                dep_task.save(update_fields=['column'])
+
     messages.success(request, "Tâche supprimée.")
     return redirect('projects:subproject_detail', project_slug=project.slug, subproject_slug=subproject.slug)
 
@@ -550,8 +647,8 @@ def credential_reveal_view(request, credential_id):
         cred.id, request.user.id, request.user.email, project.slug,
     )
     return JsonResponse({
-        'password': cred.passwordplaintext
-    } if hasattr(cred, 'passwordplaintext') else {'password': cred.password_plaintext})
+        'password': cred.password_plaintext
+    })
 
 
 @login_required
