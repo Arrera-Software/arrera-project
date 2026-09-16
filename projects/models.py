@@ -298,3 +298,16 @@ class ProjectResource(models.Model):
                     return f"{size:.1f} {unit}"
                 size /= 1024.0
         return ""
+
+    @property
+    def target_url(self):
+        if self.file:
+            try:
+                return self.file.url
+            except Exception:
+                return ""
+        if self.url:
+            if not self.url.startswith(('http://', 'https://', 'ftp://', '//')):
+                return f"https://{self.url}"
+            return self.url
+        return ""
