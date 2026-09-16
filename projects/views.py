@@ -143,9 +143,10 @@ def project_delete_view(request, slug):
 @login_required
 def project_detail_view(request, slug):
     """
-    Vue principale d'un Projet :
-    Affiche la liste de tous les sous-projets, les tâches globales rassemblées
-    et les documents/fichiers globaux.
+    Vue principale d'un Projet avec onglets :
+    1. Accueil (Sous-projets)
+    2. Tâches (Tableau Kanban global de tous les sous-projets avec filtre Personnel / Tous)
+    3. Fichiers (Documents & Fichiers du projet et sous-projets)
     """
     project = get_object_or_404(Project, slug=slug)
     if not check_project_access(request.user, project):
@@ -168,7 +169,36 @@ def project_detail_view(request, slug):
 
     total_tasks_count = all_tasks.count()
     personal_tasks_count = all_tasks.filter(assigned_to=request.user).count()
+    resources_count = all_resources.count()
     today = timezone.localdate()
+    active_tab = request.GET.get('tab', 'home')
+
+    # Regroupement des tâches dans les colonnes Kanban globales
+    standard_column_names = ["À faire", "En cours", "Terminé"]
+    existing_column_names = list(
+        KanbanColumn.objects.filter(subproject__project=project)
+        .values_list('name', flat=True)
+        .distinct()
+    )
+
+    ordered_column_names = []
+    for std_name in standard_column_names:
+        if any(std_name.lower() == c.lower() for c in existing_column_names):
+            ordered_column_names.append(std_name)
+    for col_name in existing_column_names:
+        if not any(col_name.lower() == c.lower() for c in ordered_column_names):
+            ordered_column_names.append(col_name)
+    if not ordered_column_names:
+        ordered_column_names = standard_column_names
+
+    kanban_columns_data = []
+    for col_name in ordered_column_names:
+        col_tasks = [t for t in all_tasks if t.column.name.strip().lower() == col_name.strip().lower()]
+        kanban_columns_data.append({
+            'name': col_name,
+            'tasks': col_tasks,
+            'count': len(col_tasks),
+        })
 
     return render(request, 'projects/project_detail.html', {
         'project': project,
@@ -178,10 +208,13 @@ def project_detail_view(request, slug):
         'project_resources': project_resources,
         'all_resources': all_resources,
         'all_tasks': all_tasks,
+        'kanban_columns_data': kanban_columns_data,
         'total_tasks_count': total_tasks_count,
         'personal_tasks_count': personal_tasks_count,
+        'resources_count': resources_count,
         'today': today,
         'is_admin': is_admin,
+        'active_tab': active_tab,
     })
 
 
