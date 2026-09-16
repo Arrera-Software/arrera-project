@@ -83,7 +83,7 @@
         </div>
         {% if is_admin %}
         <button type="button" 
-                onclick="openModal('subproject-modal')" 
+                onclick="openModal('subproject-modal')\" 
                 class="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer">
             <i class="ph-bold ph-plus"></i>
             <span>Nouveau Sous-projet</span>
@@ -176,6 +176,140 @@
         {% endif %}
     </div>
     {% endif %}
+
+    <!-- ================================================================= -->
+    <!-- SECTION TÂCHES DU PROJET (RÉCAPITULATIF DE TOUS LES SOUS-PROJETS) -->
+    <!-- ================================================================= -->
+    <div class="border-t border-[var(--border)] pt-8 mb-12">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+                <h2 class="text-lg font-bold tracking-tight text-adw-main flex items-center gap-2">
+                    <i class="ph-bold ph-check-square text-adw-accent"></i>
+                    <span>Tâches du projet</span>
+                </h2>
+                <p class="text-xs text-adw-muted">Toutes les tâches réparties dans les différents sous-projets.</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- Segmented Control : Toutes vs Personnel -->
+                <div class="inline-flex p-1 rounded-2xl adw-card-subtle gap-1">
+                    <button type="button" 
+                            id="tasks-filter-all-btn"
+                            onclick="setTasksFilter('all')" 
+                            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold adw-btn-primary shadow-sm cursor-pointer transition-all">
+                        <i class="ph-bold ph-list-bullets"></i>
+                        <span>Toutes les tâches</span>
+                        <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-black/15 dark:bg-white/15">{{ total_tasks_count }}</span>
+                    </button>
+                    <button type="button" 
+                            id="tasks-filter-my-btn"
+                            onclick="setTasksFilter('my')" 
+                            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-adw-muted hover:text-adw-main cursor-pointer transition-all">
+                        <i class="ph-bold ph-user-circle"></i>
+                        <span>Personnel</span>
+                        <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-black/15 dark:bg-white/15">{{ personal_tasks_count }}</span>
+                    </button>
+                </div>
+
+                <!-- Filtre par sous-projet si plusieurs sous-projets -->
+                {% if subprojects|length > 1 %}
+                <div>
+                    <select id="tasks-subproject-filter" 
+                            onchange="filterTasksBySubproject(this.value)" 
+                            class="px-3 py-1.5 rounded-xl text-xs font-semibold adw-input border border-[var(--border)] cursor-pointer focus:outline-none">
+                        <option value="all">Tous les sous-projets</option>
+                        {% for sub in subprojects %}
+                        <option value="{{ sub.id }}">{{ sub.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if all_tasks %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="project-tasks-grid">
+            {% for task in all_tasks %}
+            <div class="project-task-card rounded-2xl p-4 adw-card hover:border-[var(--accent)] hover:-translate-y-0.5 transition-all flex flex-col justify-between"
+                 data-is-me="{% if task.assigned_to_id == request.user.id %}1{% else %}0{% endif %}"
+                 data-subproject-id="{{ task.column.subproject_id }}">
+                
+                <div>
+                    <!-- En-tête de la carte de tâche -->
+                    <div class="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                        <div class="flex items-center gap-1.5">
+                            <!-- Badge Priorité -->
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider
+                                {% if task.priority == 'high' %}bg-rose-500/15 text-rose-400 border border-rose-500/20
+                                {% elif task.priority == 'medium' %}bg-amber-500/15 text-amber-400 border border-amber-500/20
+                                {% else %}bg-blue-500/15 text-blue-400 border border-blue-500/20{% endif %}">
+                                {{ task.get_priority_display }}
+                            </span>
+
+                            <!-- Badge Colonne / Statut -->
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold adw-card-subtle text-adw-muted border border-[var(--border-subtle)]">
+                                {{ task.column.name }}
+                            </span>
+                        </div>
+
+                        <!-- Badge Sous-projet (Cliquable pour aller au sous-projet) -->
+                        <a href="{% url 'projects:subproject_detail' project_slug=project.slug subproject_slug=task.column.subproject.slug %}" 
+                           class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-[var(--surface-subtle)] text-adw-accent hover:underline border border-[var(--border-subtle)]"
+                           title="Accéder au sous-projet {{ task.column.subproject.name }}">
+                            <i class="ph-bold ph-kanban"></i>
+                            <span>{{ task.column.subproject.name }}</span>
+                        </a>
+                    </div>
+
+                    <!-- Titre & Description -->
+                    <h3 class="text-xs font-bold text-adw-main leading-snug mb-1">{{ task.title }}</h3>
+                    {% if task.description %}
+                    <p class="text-[11px] text-adw-muted line-clamp-2 mb-3 leading-relaxed">{{ task.description }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Bas de carte : Assignation, Date et Lien -->
+                <div class="pt-2 border-t border-[var(--border)] flex items-center justify-between text-[11px] text-adw-muted">
+                    <div class="flex items-center gap-1.5">
+                        {% if task.assigned_to %}
+                        <div class="w-5 h-5 rounded-full border border-[var(--surface)] flex items-center justify-center text-[9px] font-bold adw-user-avatar" 
+                             title="Assigné à {{ task.assigned_to.full_name }}">
+                            {{ task.assigned_to.first_name|first|default:task.assigned_to.username|first|upper }}
+                        </div>
+                        <span class="truncate max-w-[90px] font-medium {% if task.assigned_to == request.user %}text-adw-accent font-semibold{% endif %}">
+                            {% if task.assigned_to == request.user %}Moi{% else %}{{ task.assigned_to.first_name|default:task.assigned_to.username }}{% endif %}
+                        </span>
+                        {% else %}
+                        <span class="italic text-adw-dim text-[10px]">Non assigné</span>
+                        {% endif %}
+                    </div>
+
+                    {% if task.due_date %}
+                    <span class="flex items-center gap-1 text-[10px] font-medium {% if task.due_date < today %}text-rose-400 font-bold{% endif %}" 
+                          title="Échéance : {{ task.due_date|date:'d/m/Y' }}">
+                        <i class="ph ph-calendar text-xs"></i>
+                        {{ task.due_date|date:"d M" }}
+                    </span>
+                    {% endif %}
+                </div>
+
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- État vide quand le filtre ne donne rien -->
+        <div id="no-tasks-filtered-msg" class="hidden rounded-2xl p-8 text-center border border-dashed border-[var(--border)] text-xs text-adw-dim">
+            <i class="ph ph-check-circle text-2xl mb-2 text-adw-muted block"></i>
+            <span>Aucune tâche ne correspond à ce filtre.</span>
+        </div>
+
+        {% else %}
+        <div class="rounded-2xl p-8 text-center border border-dashed border-[var(--border)] text-xs text-adw-dim">
+            <i class="ph ph-clipboard-text text-2xl mb-2 text-adw-muted block"></i>
+            <span>Aucune tâche créée dans les sous-projets pour le moment.</span>
+        </div>
+        {% endif %}
+    </div>
 
     <!-- ================================================================= -->
     <!-- SECTION DOCUMENTS & FICHIERS DU PROJET                            -->
@@ -597,6 +731,58 @@
 {% block extra_scripts %}
 <script>
     const expectedProjectName = "{{ project.name|escapejs }}";
+    let activeTaskFilter = 'all'; // 'all' ou 'my'
+    let activeSubprojectFilter = 'all';
+
+    function setTasksFilter(filterType) {
+        activeTaskFilter = filterType;
+        const allBtn = document.getElementById('tasks-filter-all-btn');
+        const myBtn = document.getElementById('tasks-filter-my-btn');
+
+        if (filterType === 'all') {
+            allBtn.className = "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold adw-btn-primary shadow-sm cursor-pointer transition-all";
+            myBtn.className = "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-adw-muted hover:text-adw-main cursor-pointer transition-all";
+        } else {
+            myBtn.className = "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold adw-btn-primary shadow-sm cursor-pointer transition-all";
+            allBtn.className = "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-adw-muted hover:text-adw-main cursor-pointer transition-all";
+        }
+
+        applyTasksFiltering();
+    }
+
+    function filterTasksBySubproject(subprojectId) {
+        activeSubprojectFilter = subprojectId;
+        applyTasksFiltering();
+    }
+
+    function applyTasksFiltering() {
+        const cards = document.querySelectorAll('.project-task-card');
+        const emptyMsg = document.getElementById('no-tasks-filtered-msg');
+        let visibleCount = 0;
+
+        cards.forEach(card => {
+            const isMe = card.getAttribute('data-is-me') === '1';
+            const subId = card.getAttribute('data-subproject-id');
+
+            const matchUser = (activeTaskFilter === 'all') || (activeTaskFilter === 'my' && isMe);
+            const matchSub = (activeSubprojectFilter === 'all') || (activeSubprojectFilter === subId);
+
+            if (matchUser && matchSub) {
+                card.classList.remove('hidden');
+                visibleCount++;
+            } else {
+                card.classList.add('hidden');
+            }
+        });
+
+        if (emptyMsg) {
+            if (visibleCount === 0 && cards.length > 0) {
+                emptyMsg.classList.remove('hidden');
+            } else {
+                emptyMsg.classList.add('hidden');
+            }
+        }
+    }
 
     function validateDeleteInputs() {
         const checkStep1 = document.getElementById('check-confirm-step1');
@@ -666,10 +852,13 @@
         });
     }
 
-    // Écouteur délégué pour les boutons de copie (remplace les onclick inline).
-    document.addEventListener('click', function(e) {
-        const copyBtn = e.target.closest('.copy-btn');
-        if (copyBtn) copyToClipboard(copyBtn.dataset.copy, copyBtn);
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const val = btn.getAttribute('data-copy');
+                copyToClipboard(val, btn);
+            });
+        });
     });
 </script>
 {% endblock %}

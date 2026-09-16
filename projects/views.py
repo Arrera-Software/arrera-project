@@ -58,53 +58,52 @@ def project_create_view(request):
             project.save()
             form.save_m2m()
 
-            # Création automatique d'un premier sous-projet principal
-            default_sub = SubProject.objects.create(
+            # Création automatique du premier sous-projet par défaut
+            subproject = SubProject.objects.create(
                 project=project,
                 name="Général",
-                description="Sous-projet principal par défaut"
+                description="Sous-projet principal par défaut pour organiser les premières tâches."
             )
-            KanbanColumn.objects.create(subproject=default_sub, name="À faire", order=1)
-            KanbanColumn.objects.create(subproject=default_sub, name="En cours", order=2)
-            KanbanColumn.objects.create(subproject=default_sub, name="Terminé", order=3)
+            # Colonnes Kanban par défaut
+            KanbanColumn.objects.create(subproject=subproject, name="À faire", order=1)
+            KanbanColumn.objects.create(subproject=subproject, name="En cours", order=2)
+            KanbanColumn.objects.create(subproject=subproject, name="Terminé", order=3)
 
-            messages.success(request, f"Le projet « {project.name} » a été créé.")
+            messages.success(request, f"Projet « {project.name} » créé avec succès.")
             return redirect('projects:project_detail', slug=project.slug)
     else:
         form = ProjectForm()
 
-    return render(request, 'projects/project_form.html', {\
+    return render(request, 'projects/project_form.html', {
         'form': form,
         'action_title': "Nouveau Projet",
         'button_label': "Créer le Projet",
+        'is_edit': False,
     })
 
 
 @login_required
 def project_edit_view(request, slug):
-    """
-    Modification d'un projet existant (nom, description, chef de projet, membres assignés).
-    Accessible à l'administrateur et au chef de projet désigné.
-    """
+    """Modification d'un projet existant (chef de projet ou admin)."""
     project = get_object_or_404(Project, slug=slug)
     if not is_project_manager_or_admin(request.user, project):
-        raise PermissionDenied("Vous n'avez pas les droits d'administration sur ce projet.")
+        raise PermissionDenied("Seul le chef de projet ou l'administrateur a l'autorisation de modifier ce projet.")
 
     if request.method == 'POST':
         form = ProjectForm(request.POST, instance=project)
         if form.is_valid():
-            project = form.save()
-            messages.success(request, f"Les paramètres du projet « {project.name} » ont été enregistrés.")
+            form.save()
+            messages.success(request, f"Projet « {project.name} » mis à jour avec succès.")
             return redirect('projects:project_detail', slug=project.slug)
     else:
         form = ProjectForm(instance=project)
 
     return render(request, 'projects/project_form.html', {
         'form': form,
+        'project': project,
         'action_title': f"Paramètres de {project.name}",
         'button_label': "Enregistrer les modifications",
         'is_edit': True,
-        'project': project,
     })
 
 
@@ -144,9 +143,9 @@ def project_delete_view(request, slug):
 @login_required
 def project_detail_view(request, slug):
     """
-    Page du Projet Principal :
-    Affiche les détails du projet, le chef de projet, l'équipe affectée, la liste des sous-projets
-    et la section des documents & fichiers.
+    Vue principale d'un Projet :
+    Affiche la liste de tous les sous-projets, les tâches globales rassemblées
+    et les documents/fichiers globaux.
     """
     project = get_object_or_404(Project, slug=slug)
     if not check_project_access(request.user, project):
@@ -162,6 +161,15 @@ def project_detail_view(request, slug):
     
     is_admin = is_project_manager_or_admin(request.user, project)
 
+    # Récupération de l'ensemble des tâches de tous les sous-projets
+    all_tasks = Task.objects.filter(column__subproject__project=project).select_related(
+        'column__subproject', 'column', 'assigned_to', 'created_by'
+    ).order_by('column__order', 'due_date', '-created_at')
+
+    total_tasks_count = all_tasks.count()
+    personal_tasks_count = all_tasks.filter(assigned_to=request.user).count()
+    today = timezone.localdate()
+
     return render(request, 'projects/project_detail.html', {
         'project': project,
         'subprojects': subprojects,
@@ -169,6 +177,10 @@ def project_detail_view(request, slug):
         'resource_form': resource_form,
         'project_resources': project_resources,
         'all_resources': all_resources,
+        'all_tasks': all_tasks,
+        'total_tasks_count': total_tasks_count,
+        'personal_tasks_count': personal_tasks_count,
+        'today': today,
         'is_admin': is_admin,
     })
 
@@ -228,6 +240,7 @@ def subproject_detail_view(request, project_slug, subproject_slug):
     task_form = TaskForm(subproject=subproject)
     credential_form = ProjectCredentialForm()
     resource_form = ProjectResourceForm()
+    edit_subproject_form = SubProjectForm(instance=subproject)
 
     # Récupérer les sous-projets frères pour la navigation rapide
     sibling_subprojects = project.subprojects.all()
@@ -274,6 +287,7 @@ def subproject_detail_view(request, project_slug, subproject_slug):
         'task_form': task_form,
         'credential_form': credential_form,
         'resource_form': resource_form,
+        'edit_subproject_form': edit_subproject_form,
         'is_admin': is_admin,
         'total_tasks_count': total_tasks_count,
         'personal_tasks_count': personal_tasks_count,
@@ -282,6 +296,28 @@ def subproject_detail_view(request, project_slug, subproject_slug):
         'tasks_gantt_json': json.dumps(tasks_gantt_data),
         'active_tab': request.GET.get('tab', 'general'),
     })
+
+
+@login_required
+@require_POST
+def subproject_edit_view(request, project_slug, subproject_slug):
+    """
+    Modification d'un sous-projet (nom et description).
+    Strictement réservé au Chef de Projet ou à l'Administrateur.
+    """
+    project = get_object_or_404(Project, slug=project_slug)
+    if not is_project_manager_or_admin(request.user, project):
+        raise PermissionDenied("Seul le chef de projet ou l'administrateur a l'autorisation de modifier ce sous-projet.")
+
+    subproject = get_object_or_404(SubProject, project=project, slug=subproject_slug)
+    form = SubProjectForm(request.POST, instance=subproject)
+    if form.is_valid():
+        form.save()
+        messages.success(request, f"Sous-projet « {subproject.name} » mis à jour avec succès.")
+    else:
+        messages.error(request, "Erreur lors de la modification du sous-projet.")
+
+    return redirect('projects:subproject_detail', project_slug=project.slug, subproject_slug=subproject.slug)
 
 
 @login_required
@@ -363,23 +399,18 @@ def task_delete_view(request, task_id):
     if not check_project_access(request.user, project):
         raise PermissionDenied("Accès refusé.")
 
-    # Seuls le créateur de la tâche, le chef de projet ou l'administrateur peuvent la supprimer.
-    if not (is_project_manager_or_admin(request.user, project) or task.created_by_id == request.user.id):
-        raise PermissionDenied("Seul le créateur de la tâche ou un responsable peut la supprimer.")
-
     task.delete()
     messages.success(request, "Tâche supprimée.")
-    redirect_tab = request.POST.get('redirect_tab', 'general')
-    return redirect(f"/projets/{project.slug}/{subproject.slug}/?tab={redirect_tab}")
+    return redirect('projects:subproject_detail', project_slug=project.slug, subproject_slug=subproject.slug)
 
 
 @login_required
 @require_POST
 def credential_create_view(request, project_slug, subproject_slug):
-    """Ajout d'un identifiant / mot de passe dans le sous-projet (chef de projet / admin)."""
+    """Ajout d'un identifiant / mot de passe dans le sous-projet."""
     project = get_object_or_404(Project, slug=project_slug)
-    if not is_project_manager_or_admin(request.user, project):
-        raise PermissionDenied("Seul le chef de projet ou l'administrateur peut gérer le coffre-fort.")
+    if not check_project_access(request.user, project):
+        raise PermissionDenied("Accès refusé.")
 
     subproject = get_object_or_404(SubProject, project=project, slug=subproject_slug)
 
@@ -398,13 +429,13 @@ def credential_create_view(request, project_slug, subproject_slug):
 @login_required
 @require_POST
 def credential_delete_view(request, credential_id):
-    """Suppression d'un mot de passe / accès (chef de projet / admin)."""
+    """Suppression d'un mot de passe / accès."""
     cred = get_object_or_404(ProjectCredential, id=credential_id)
     subproject = cred.subproject
     project = subproject.project
 
-    if not is_project_manager_or_admin(request.user, project):
-        raise PermissionDenied("Seul le chef de projet ou l'administrateur peut gérer le coffre-fort.")
+    if not check_project_access(request.user, project):
+        raise PermissionDenied("Accès refusé.")
 
     cred.delete()
     messages.success(request, "Accès supprimé du coffre-fort.")
@@ -412,24 +443,21 @@ def credential_delete_view(request, credential_id):
 
 
 @login_required
-@require_POST
 def credential_reveal_view(request, credential_id):
-    """
-    Renvoie le secret déchiffré d'un identifiant, à la demande (bouton « révéler »
-    ou « copier »). Accès restreint au chef de projet / administrateur et journalisé.
-    Le secret n'est jamais présent dans le HTML initial de la page.
-    """
+    """Déchiffrement et révélation sécurisée d'un mot de passe (chef de projet ou admin uniquement)."""
     cred = get_object_or_404(ProjectCredential, id=credential_id)
     project = cred.subproject.project
 
     if not is_project_manager_or_admin(request.user, project):
-        raise PermissionDenied("Accès refusé au secret.")
+        raise PermissionDenied("Seul le chef de projet ou l'administrateur peut révéler ce secret.")
 
     credential_logger.info(
         "Révélation du secret credential_id=%s par user_id=%s (%s) projet=%s",
         cred.id, request.user.id, request.user.email, project.slug,
     )
-    return JsonResponse({'password': cred.password_plaintext})
+    return JsonResponse({
+        'password': cred.password_plaintext
+    })
 
 
 @login_required
