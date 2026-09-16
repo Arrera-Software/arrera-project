@@ -2,6 +2,7 @@ import json
 import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import get_user_model
 from django.views.decorators.http import require_POST
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
@@ -9,6 +10,8 @@ from django.http import JsonResponse
 from django.utils import timezone
 from .models import Project, SubProject, KanbanColumn, Task, ProjectCredential, ProjectResource
 from .forms import ProjectForm, SubProjectForm, TaskForm, ProjectCredentialForm, ProjectResourceForm
+
+User = get_user_model()
 
 # Journal dédié aux accès aux secrets du coffre-fort.
 credential_logger = logging.getLogger('projects.credentials')
@@ -265,6 +268,10 @@ def subproject_detail_view(request, project_slug, subproject_slug):
     resource_form = ProjectResourceForm()
     edit_subproject_form = SubProjectForm(instance=subproject)
 
+    # Récupérer les utilisateurs éligibles pour l'assignation de tâche (hors superutilisateurs)
+    manager_qs = User.objects.filter(id=project.manager_id, is_active=True, is_superuser=False) if project.manager_id else User.objects.none()
+    assignable_users = (project.members.filter(is_active=True, is_superuser=False) | manager_qs).distinct().order_by('first_name', 'username')
+
     # Récupérer les sous-projets frères pour la navigation rapide
     sibling_subprojects = project.subprojects.all()
 
@@ -308,6 +315,7 @@ def subproject_detail_view(request, project_slug, subproject_slug):
         'subproject_resources': subproject_resources,
         'parent_resources': parent_resources,
         'task_form': task_form,
+        'assignable_users': assignable_users,
         'credential_form': credential_form,
         'resource_form': resource_form,
         'edit_subproject_form': edit_subproject_form,
@@ -383,7 +391,17 @@ def task_create_view(request, project_slug, subproject_slug):
     form = TaskForm(request.POST, subproject=subproject)
     if form.is_valid():
         task = form.save(commit=False)
+        task.subproject = subproject
         task.created_by = request.user
+
+        # Assigner par défaut dans la colonne "À faire"
+        todo_column = subproject.columns.filter(name__iexact="À faire").first()
+        if not todo_column:
+            todo_column = subproject.columns.order_by('order').first()
+        if not todo_column:
+            todo_column = KanbanColumn.objects.create(subproject=subproject, name="À faire", order=1)
+
+        task.column = todo_column
         task.save()
         messages.success(request, f"Tâche « {task.title} » ajoutée avec succès.")
     else:

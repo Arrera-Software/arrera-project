@@ -93,7 +93,7 @@ class TaskForm(forms.ModelForm):
     """Formulaire d'ajout ou modification d'une tâche avec dates de début et deadline."""
     class Meta:
         model = Task
-        fields = ['title', 'description', 'column', 'assigned_to', 'priority', 'start_date', 'due_date']
+        fields = ['title', 'description', 'assigned_to', 'priority', 'start_date', 'due_date']
         widgets = {
             'title': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input',
@@ -105,11 +105,8 @@ class TaskForm(forms.ModelForm):
                 'placeholder': 'Détails, spécifications...',
                 'rows': 3,
             }),
-            'column': forms.Select(attrs={
-                'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input cursor-pointer',
-            }),
-            'assigned_to': forms.Select(attrs={
-                'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input cursor-pointer',
+            'assigned_to': forms.HiddenInput(attrs={
+                'id': 'task-assigned-to-input',
             }),
             'priority': forms.Select(attrs={
                 'class': 'w-full px-4 py-2.5 rounded-2xl text-sm adw-input cursor-pointer',
@@ -127,12 +124,10 @@ class TaskForm(forms.ModelForm):
     def __init__(self, *args, subproject=None, **kwargs):
         super().__init__(*args, **kwargs)
         if subproject:
-            self.fields['column'].queryset = subproject.columns.all()
             project = subproject.project
-            manager_qs = User.objects.filter(id=project.manager_id) if project.manager_id else User.objects.none()
-            self.fields['assigned_to'].queryset = (project.members.all() | User.objects.filter(is_superuser=True) | manager_qs).distinct()
-            self.fields['assigned_to'].label_from_instance = lambda obj: f"{obj.full_name} ({obj.email})"
-            self.fields['assigned_to'].empty_label = "-- Non assigné --"
+            manager_qs = User.objects.filter(id=project.manager_id, is_active=True, is_superuser=False) if project.manager_id else User.objects.none()
+            self.fields['assigned_to'].queryset = (project.members.filter(is_active=True, is_superuser=False) | manager_qs).distinct()
+            self.fields['assigned_to'].required = False
 
 
 class ProjectCredentialForm(forms.ModelForm):
