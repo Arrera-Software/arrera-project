@@ -147,6 +147,7 @@ def project_detail_view(request, slug):
     1. Accueil (Sous-projets)
     2. Tâches (Tableau Kanban global de tous les sous-projets avec filtre Personnel / Tous)
     3. Fichiers (Documents & Fichiers du projet et sous-projets)
+
     """
     project = get_object_or_404(Project, slug=slug)
     if not check_project_access(request.user, project):
