@@ -120,6 +120,39 @@ class TaskForm(forms.ModelForm):
             self.fields['dependencies'].queryset = tasks_qs
             self.fields['dependencies'].required = False
 
+    def clean(self):
+        cleaned_data = super().clean()
+        start_date = cleaned_data.get('start_date')
+        due_date = cleaned_data.get('due_date')
+        dependencies = cleaned_data.get('dependencies')
+
+        if start_date and due_date and due_date < start_date:
+            self.add_error('due_date', "La date d'échéance ne peut pas être antérieure à la date de début.")
+
+        if dependencies:
+            latest_dep_date = None
+            blocking_task_title = ""
+
+            for dep in dependencies:
+                dep_ref_date = dep.due_date or dep.start_date
+                if dep_ref_date and (latest_dep_date is None or dep_ref_date > latest_dep_date):
+                    latest_dep_date = dep_ref_date
+                    blocking_task_title = dep.title
+
+            if latest_dep_date:
+                if start_date and start_date < latest_dep_date:
+                    self.add_error(
+                        'start_date',
+                        f"La date de début ({start_date.strftime('%d/%m/%Y')}) ne peut pas être antérieure à la fin de la tâche requise « {blocking_task_title} » ({latest_dep_date.strftime('%d/%m/%Y')})."
+                    )
+                elif not start_date and due_date and due_date < latest_dep_date:
+                    self.add_error(
+                        'due_date',
+                        f"La date d'échéance ({due_date.strftime('%d/%m/%Y')}) ne peut pas être antérieure à la fin de la tâche requise « {blocking_task_title} » ({latest_dep_date.strftime('%d/%m/%Y')})."
+                    )
+
+        return cleaned_data
+
 
 class ProjectCredentialForm(forms.ModelForm):
     """

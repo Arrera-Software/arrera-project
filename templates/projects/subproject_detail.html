@@ -832,6 +832,10 @@
                     {{ task_form.due_date }}
                 </div>
             </div>
+            <div id="date-dep-notice-create" class="hidden p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 flex items-center gap-2">
+                <i class="ph-bold ph-warning text-sm shrink-0"></i>
+                <span id="date-dep-notice-create-text"></span>
+            </div>
 
             <div>
                 <label class="block text-xs font-semibold mb-1.5 text-adw-main">Description détaillée</label>
@@ -847,10 +851,18 @@
                 <div class="max-h-36 overflow-y-auto rounded-2xl border border-[var(--border)] adw-card-subtle p-2 space-y-1">
                     {% for st in all_project_tasks %}
                     <label class="flex items-center gap-2 p-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer text-xs select-none">
-                        <input type="checkbox" name="dependencies" value="{{ st.id }}" class="rounded text-[var(--accent)] focus:ring-0">
+                        <input type="checkbox" name="dependencies" value="{{ st.id }}" 
+                               data-due-date="{{ st.due_date|date:'Y-m-d'|default:'' }}"
+                               data-start-date="{{ st.start_date|date:'Y-m-d'|default:'' }}"
+                               data-title="{{ st.title }}"
+                               onchange="updateDependencyDateConstraint('create')"
+                               class="create-task-dep-checkbox rounded text-[var(--accent)] focus:ring-0">
                         <div class="min-w-0 flex-1">
                             <span class="text-adw-main font-medium block truncate">{{ st.title }}</span>
-                            <span class="text-[10px] text-adw-dim block truncate">Sous-projet : {{ st.subproject.name }}</span>
+                            <span class="text-[10px] text-adw-dim block truncate">
+                                Sous-projet : {{ st.subproject.name }}
+                                {% if st.due_date %} • Échéance : {{ st.due_date|date:'d/m/Y' }}{% elif st.start_date %} • Début : {{ st.start_date|date:'d/m/Y' }}{% endif %}
+                            </span>
                         </div>
                         <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold shrink-0
                             {% if st.column.name|lower == 'terminé' %}bg-emerald-500/15 text-emerald-400
@@ -955,6 +967,10 @@
                     <input type="date" name="due_date" id="edit-task-due-date" class="w-full px-4 py-2.5 rounded-2xl text-sm adw-input">
                 </div>
             </div>
+            <div id="date-dep-notice-edit" class="hidden p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 flex items-center gap-2">
+                <i class="ph-bold ph-warning text-sm shrink-0"></i>
+                <span id="date-dep-notice-edit-text"></span>
+            </div>
 
             <div>
                 <label class="block text-xs font-semibold mb-1.5 text-adw-main">Description détaillée</label>
@@ -970,10 +986,18 @@
                 <div class="max-h-36 overflow-y-auto rounded-2xl border border-[var(--border)] adw-card-subtle p-2 space-y-1" id="edit-task-deps-container">
                     {% for st in all_project_tasks %}
                     <label class="flex items-center gap-2 p-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer text-xs select-none edit-dep-item" data-task-id="{{ st.id }}">
-                        <input type="checkbox" name="dependencies" value="{{ st.id }}" class="edit-task-dep-checkbox rounded text-[var(--accent)] focus:ring-0">
+                        <input type="checkbox" name="dependencies" value="{{ st.id }}" 
+                               data-due-date="{{ st.due_date|date:'Y-m-d'|default:'' }}"
+                               data-start-date="{{ st.start_date|date:'Y-m-d'|default:'' }}"
+                               data-title="{{ st.title }}"
+                               onchange="updateDependencyDateConstraint('edit')"
+                               class="edit-task-dep-checkbox rounded text-[var(--accent)] focus:ring-0">
                         <div class="min-w-0 flex-1">
                             <span class="text-adw-main font-medium block truncate">{{ st.title }}</span>
-                            <span class="text-[10px] text-adw-dim block truncate">Sous-projet : {{ st.subproject.name }}</span>
+                            <span class="text-[10px] text-adw-dim block truncate">
+                                Sous-projet : {{ st.subproject.name }}
+                                {% if st.due_date %} • Échéance : {{ st.due_date|date:'d/m/Y' }}{% elif st.start_date %} • Début : {{ st.start_date|date:'d/m/Y' }}{% endif %}
+                            </span>
                         </div>
                         <span class="text-[10px] px-1.5 py-0.5 rounded-md font-semibold shrink-0
                             {% if st.column.name|lower == 'terminé' %}bg-emerald-500/15 text-emerald-400
@@ -1431,7 +1455,65 @@
             }
         });
 
+        updateDependencyDateConstraint('edit');
         openModal('edit-task-modal');
+    }
+
+
+    function updateDependencyDateConstraint(mode) {
+        const isCreate = (mode === 'create');
+        const checkboxes = isCreate 
+            ? document.querySelectorAll('.create-task-dep-checkbox:checked')
+            : document.querySelectorAll('.edit-task-dep-checkbox:checked');
+
+        const startDateInput = isCreate 
+            ? document.querySelector('#task-modal input[name="start_date"]')
+            : document.getElementById('edit-task-start-date');
+
+        const dueDateInput = isCreate 
+            ? document.querySelector('#task-modal input[name="due_date"]')
+            : document.getElementById('edit-task-due-date');
+
+        const noticeBox = document.getElementById(isCreate ? 'date-dep-notice-create' : 'date-dep-notice-edit');
+        const noticeText = document.getElementById(isCreate ? 'date-dep-notice-create-text' : 'date-dep-notice-edit-text');
+
+        let maxDepDate = '';
+        let maxDepTitle = '';
+
+        checkboxes.forEach(cb => {
+            const dueDate = cb.getAttribute('data-due-date') || '';
+            const startDate = cb.getAttribute('data-start-date') || '';
+            const refDate = dueDate || startDate;
+            const title = cb.getAttribute('data-title') || '';
+
+            if (refDate && (!maxDepDate || refDate > maxDepDate)) {
+                maxDepDate = refDate;
+                maxDepTitle = title;
+            }
+        });
+
+        if (maxDepDate) {
+            if (startDateInput) {
+                startDateInput.min = maxDepDate;
+                if (startDateInput.value && startDateInput.value < maxDepDate) {
+                    startDateInput.value = maxDepDate;
+                }
+            }
+            if (dueDateInput) {
+                dueDateInput.min = (startDateInput && startDateInput.value) ? startDateInput.value : maxDepDate;
+            }
+
+            if (noticeBox && noticeText) {
+                const parts = maxDepDate.split('-');
+                const formattedDate = (parts.length === 3) ? `${parts[2]}/${parts[1]}/${parts[0]}` : maxDepDate;
+                noticeText.innerHTML = `Date de début minimale : <strong>${formattedDate}</strong> (imposée par la tâche requise « ${escapeHtml(maxDepTitle)} »).`;
+                noticeBox.classList.remove('hidden');
+            }
+        } else {
+            if (startDateInput) startDateInput.removeAttribute('min');
+            if (dueDateInput) dueDateInput.removeAttribute('min');
+            if (noticeBox) noticeBox.classList.add('hidden');
+        }
     }
 
     function filterUsersList() {
