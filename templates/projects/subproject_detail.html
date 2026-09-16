@@ -169,8 +169,8 @@
                      ondrop="onDrop(event, '{{ col.id }}')">
                     
                     {% for task in col.tasks.all %}
-                    <div class="rounded-2xl p-4 adw-card-subtle hover:border-[var(--accent)] transition-all cursor-grab active:cursor-grabbing group shadow-sm"
-                         draggable="true" 
+                    <div class="rounded-2xl p-4 adw-card-subtle hover:border-[var(--accent)] transition-all {% if is_admin or task.assigned_to_id == request.user.id %}cursor-grab active:cursor-grabbing{% else %}cursor-default{% endif %} group shadow-sm"
+                         draggable="{% if is_admin or task.assigned_to_id == request.user.id %}true{% else %}false{% endif %}" 
                          id="task-{{ task.id }}"
                          ondragstart="onDragStart(event, '{{ task.id }}')">
                         
@@ -182,15 +182,27 @@
                                 {{ task.get_priority_display }}
                             </span>
 
-                            <form method="post" action="{% url 'projects:task_delete' task_id=task.id %}" class="inline m-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {% csrf_token %}
-                                <button type="submit" 
-                                        onclick="return confirm('Supprimer cette tâche ?')" 
-                                        class="text-adw-dim hover:text-adw-error transition-colors p-0.5 cursor-pointer" 
-                                        title="Supprimer la tâche">
-                                    <i class="ph ph-trash text-xs"></i>
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {% if is_admin or task.assigned_to_id == request.user.id %}
+                                <button type="button" 
+                                        onclick="openEditTaskModal({{ task.id }}, '{{ task.title|escapejs }}', '{{ task.description|escapejs }}', '{{ task.priority }}', '{{ task.assigned_to_id|default:'' }}', '{{ task.assigned_to.full_name|default:''|escapejs }}', '{{ task.assigned_to.email|default:''|escapejs }}', '{{ task.assigned_to.first_name|first|default:task.assigned_to.username|first|upper|default:'' }}', '{{ task.start_date|date:'Y-m-d'|default:'' }}', '{{ task.due_date|date:'Y-m-d'|default:'' }}', {% if is_admin %}true{% else %}false{% endif %})" 
+                                        class="text-adw-dim hover:text-adw-accent transition-colors p-0.5 cursor-pointer" 
+                                        title="Modifier la tâche">
+                                    <i class="ph ph-pencil-simple text-xs"></i>
                                 </button>
-                            </form>
+                                {% endif %}
+                                {% if is_admin %}
+                                <form method="post" action="{% url 'projects:task_delete' task_id=task.id %}" class="inline m-0">
+                                    {% csrf_token %}
+                                    <button type="submit" 
+                                            onclick="return confirm('Supprimer cette tâche ?')" 
+                                            class="text-adw-dim hover:text-adw-error transition-colors p-0.5 cursor-pointer" 
+                                            title="Supprimer la tâche">
+                                        <i class="ph ph-trash text-xs"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
                         </div>
 
                         <h4 class="text-xs font-bold text-adw-main leading-snug mb-1">{{ task.title }}</h4>
@@ -265,15 +277,25 @@
                                     {{ task.get_priority_display }}
                                 </span>
 
-                                <form method="post" action="{% url 'projects:task_delete' task_id=task.id %}" class="inline m-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {% csrf_token %}
-                                    <button type="submit" 
-                                            onclick="return confirm('Supprimer cette tâche ?')" 
-                                            class="text-adw-dim hover:text-adw-error transition-colors p-0.5 cursor-pointer" 
-                                            title="Supprimer la tâche">
-                                        <i class="ph ph-trash text-xs"></i>
+                                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button type="button" 
+                                            onclick="openEditTaskModal({{ task.id }}, '{{ task.title|escapejs }}', '{{ task.description|escapejs }}', '{{ task.priority }}', '{{ task.assigned_to_id|default:'' }}', '{{ task.assigned_to.full_name|default:''|escapejs }}', '{{ task.assigned_to.email|default:''|escapejs }}', '{{ task.assigned_to.first_name|first|default:task.assigned_to.username|first|upper|default:'' }}', '{{ task.start_date|date:'Y-m-d'|default:'' }}', '{{ task.due_date|date:'Y-m-d'|default:'' }}', {% if is_admin %}true{% else %}false{% endif %})" 
+                                            class="text-adw-dim hover:text-adw-accent transition-colors p-0.5 cursor-pointer" 
+                                            title="Modifier la tâche">
+                                        <i class="ph ph-pencil-simple text-xs"></i>
                                     </button>
-                                </form>
+                                    {% if is_admin %}
+                                    <form method="post" action="{% url 'projects:task_delete' task_id=task.id %}" class="inline m-0">
+                                        {% csrf_token %}
+                                        <button type="submit" 
+                                                onclick="return confirm('Supprimer cette tâche ?')" 
+                                                class="text-adw-dim hover:text-adw-error transition-colors p-0.5 cursor-pointer" 
+                                                title="Supprimer la tâche">
+                                            <i class="ph ph-trash text-xs"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
                             </div>
 
                             <h4 class="text-xs font-bold text-adw-main leading-snug mb-1">{{ task.title }}</h4>
@@ -754,7 +776,7 @@
                     <label class="block text-xs font-semibold mb-1.5 text-adw-main">Assigner à</label>
                     {{ task_form.assigned_to }}
                     <div id="selected-user-display" 
-                         onclick="openModal('user-picker-modal')"
+                         onclick="openUserPicker('create')"
                          class="w-full px-3 py-2 rounded-2xl border border-[var(--border)] adw-card-subtle hover:border-[var(--accent)] transition-all cursor-pointer flex items-center justify-between group min-h-[42px]">
                         <div class="flex items-center gap-2 min-w-0" id="selected-user-info">
                             <div id="selected-user-avatar" class="w-6 h-6 rounded-full bg-black/10 dark:bg-white/10 text-adw-muted flex items-center justify-center text-[10px] font-bold shrink-0">
@@ -794,6 +816,102 @@
                 </button>
                 <button type="submit" class="px-5 py-2.5 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer">
                     Ajouter la tâche
+                </button>
+            </div>
+        </form>
+
+    </div>
+</div>
+
+<!-- ===================================================================== -->
+<!-- MODAL : MODIFIER UNE TÂCHE EXISTANTE                                  -->
+<!-- ===================================================================== -->
+<div id="edit-task-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+    <div class="w-full max-w-lg rounded-3xl p-7 adw-card shadow-2xl relative" onclick="event.stopPropagation()">
+        
+        <div class="flex items-center justify-between mb-5 pb-3 border-b border-[var(--border)]">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-xl flex items-center justify-center text-white adw-logo-badge">
+                    <i class="ph-bold ph-pencil-simple text-base"></i>
+                </div>
+                <h3 class="text-base font-bold text-adw-main">Modifier la Tâche</h3>
+            </div>
+            <button type="button" onclick="closeModal('edit-task-modal')" class="text-adw-muted hover:text-adw-main cursor-pointer p-1">
+                <i class="ph-bold ph-x text-base"></i>
+            </button>
+        </div>
+
+        <form id="edit-task-form" method="post" action="" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="redirect_tab" id="edit-task-redirect-tab" value="general">
+
+            <!-- Bannière d'information pour membre assigné -->
+            <div id="edit-task-restricted-notice" class="hidden p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400 flex items-start gap-2.5">
+                <i class="ph-bold ph-info text-base shrink-0 mt-0.5"></i>
+                <div class="leading-relaxed">
+                    <span class="font-semibold block">Droits d'édition restreints</span>
+                    <span>En tant que membre assigné, vous pouvez modifier la <strong>description</strong>, la <strong>date de début</strong>, la <strong>date limite</strong> et déplacer l'état de la tâche. Seuls le titre, la priorité et l'assignation sont réservés au chef de projet ou à l'administrateur.</span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Titre de la tâche <span class="text-adw-error">*</span></label>
+                <input type="text" name="title" id="edit-task-title" required class="w-full px-4 py-2.5 rounded-2xl text-sm adw-input" placeholder="Titre de la tâche...">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Priorité</label>
+                    <select name="priority" id="edit-task-priority" class="w-full px-4 py-2.5 rounded-2xl text-sm adw-input cursor-pointer">
+                        <option value="low">Basse</option>
+                        <option value="medium">Moyenne</option>
+                        <option value="high">Haute</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Assigner à</label>
+                    <input type="hidden" name="assigned_to" id="edit-task-assigned-to-input">
+                    <div id="edit-selected-user-display" 
+                         onclick="openUserPicker('edit')" 
+                         class="w-full px-3 py-2 rounded-2xl border border-[var(--border)] adw-card-subtle hover:border-[var(--accent)] transition-all cursor-pointer flex items-center justify-between group min-h-[42px]">
+                        <div class="flex items-center gap-2 min-w-0" id="edit-selected-user-info">
+                            <div id="edit-selected-user-avatar" class="w-6 h-6 rounded-full bg-black/10 dark:bg-white/10 text-adw-muted flex items-center justify-center text-[10px] font-bold shrink-0">
+                                <i class="ph-bold ph-user-circle text-sm"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <span id="edit-selected-user-name" class="text-xs font-medium text-adw-main block truncate">Non assigné</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 text-[11px] text-adw-accent font-semibold group-hover:translate-x-0.5 transition-transform shrink-0">
+                            <span>Choisir</span>
+                            <i class="ph-bold ph-caret-right text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Date de début</label>
+                    <input type="date" name="start_date" id="edit-task-start-date" class="w-full px-4 py-2.5 rounded-2xl text-sm adw-input">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1.5 text-adw-main">Date limite (Deadline)</label>
+                    <input type="date" name="due_date" id="edit-task-due-date" class="w-full px-4 py-2.5 rounded-2xl text-sm adw-input">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold mb-1.5 text-adw-main">Description détaillée</label>
+                <textarea name="description" id="edit-task-description" rows="3" class="w-full px-4 py-2.5 rounded-2xl text-sm adw-input" placeholder="Détails, spécifications..."></textarea>
+            </div>
+
+            <div class="pt-4 flex items-center justify-end gap-3 border-t border-[var(--border)]">
+                <button type="button" onclick="closeModal('edit-task-modal')" class="px-4 py-2 rounded-2xl text-xs font-semibold text-adw-muted hover:text-adw-main cursor-pointer">
+                    Annuler
+                </button>
+                <button type="submit" class="px-5 py-2.5 rounded-2xl text-xs font-semibold adw-btn-primary cursor-pointer">
+                    Enregistrer les modifications
                 </button>
             </div>
         </form>
@@ -1078,17 +1196,44 @@
         }
     }
 
-        function selectUser(userId, userName, userEmail, avatarInitial) {
-        const input = document.getElementById('task-assigned-to-input');
-        if (input) {
-            input.value = userId;
+    let activeUserPickerTarget = 'create';
+
+    function openUserPicker(target) {
+        activeUserPickerTarget = target;
+        const currentVal = (target === 'edit') 
+            ? (document.getElementById('edit-task-assigned-to-input')?.value || '')
+            : (document.getElementById('task-assigned-to-input')?.value || '');
+
+        document.querySelectorAll('.check-indicator').forEach(el => {
+            if (el.getAttribute('data-user-id') === String(currentVal)) {
+                el.classList.remove('opacity-0');
+            } else {
+                el.classList.add('opacity-0');
+            }
+        });
+
+        const searchInput = document.getElementById('user-search-input');
+        if (searchInput) {
+            searchInput.value = '';
+            filterUsersList();
         }
 
-        const nameEl = document.getElementById('selected-user-name');
-        const avatarEl = document.getElementById('selected-user-avatar');
+        openModal('user-picker-modal');
+    }
 
+    function selectUser(userId, userName, userEmail, avatarInitial) {
+        const isEdit = (activeUserPickerTarget === 'edit');
+        const inputId = isEdit ? 'edit-task-assigned-to-input' : 'task-assigned-to-input';
+        const nameId = isEdit ? 'edit-selected-user-name' : 'selected-user-name';
+        const avatarId = isEdit ? 'edit-selected-user-avatar' : 'selected-user-avatar';
+
+        const input = document.getElementById(inputId);
+        if (input) input.value = userId;
+
+        const nameEl = document.getElementById(nameId);
         if (nameEl) nameEl.textContent = userName;
 
+        const avatarEl = document.getElementById(avatarId);
         if (avatarEl) {
             if (avatarInitial) {
                 avatarEl.innerHTML = avatarInitial;
@@ -1108,6 +1253,86 @@
         });
 
         closeModal('user-picker-modal');
+    }
+
+    function openEditTaskModal(taskId, title, description, priority, assignedId, assignedName, assignedEmail, avatarInitial, startDate, dueDate, canFullEdit) {
+        const form = document.getElementById('edit-task-form');
+        if (form) form.action = '/projets/tasks/' + taskId + '/edit/';
+
+        const redirectTabInput = document.getElementById('edit-task-redirect-tab');
+        if (redirectTabInput) redirectTabInput.value = currentTab;
+
+        const titleInput = document.getElementById('edit-task-title');
+        if (titleInput) {
+            titleInput.value = title || '';
+            titleInput.readOnly = !canFullEdit;
+            titleInput.classList.toggle('opacity-60', !canFullEdit);
+            titleInput.classList.toggle('cursor-not-allowed', !canFullEdit);
+        }
+
+        const priorityInput = document.getElementById('edit-task-priority');
+        if (priorityInput) {
+            priorityInput.value = priority || 'medium';
+            priorityInput.disabled = !canFullEdit;
+            priorityInput.classList.toggle('opacity-60', !canFullEdit);
+            priorityInput.classList.toggle('cursor-not-allowed', !canFullEdit);
+        }
+
+        const startInput = document.getElementById('edit-task-start-date');
+        if (startInput) {
+            startInput.value = startDate || '';
+            startInput.readOnly = false;
+            startInput.classList.remove('opacity-60', 'cursor-not-allowed');
+        }
+
+        const dueInput = document.getElementById('edit-task-due-date');
+        if (dueInput) {
+            dueInput.value = dueDate || '';
+            dueInput.readOnly = false;
+            dueInput.classList.remove('opacity-60', 'cursor-not-allowed');
+        }
+
+        const assignedInput = document.getElementById('edit-task-assigned-to-input');
+        if (assignedInput) assignedInput.value = assignedId || '';
+
+        const nameEl = document.getElementById('edit-selected-user-name');
+        if (nameEl) nameEl.textContent = assignedName || 'Non assigné';
+
+        const avatarEl = document.getElementById('edit-selected-user-avatar');
+        if (avatarEl) {
+            if (avatarInitial) {
+                avatarEl.innerHTML = avatarInitial;
+                avatarEl.className = 'w-6 h-6 rounded-full border border-[var(--surface)] flex items-center justify-center text-[10px] font-bold adw-user-avatar shrink-0';
+            } else {
+                avatarEl.innerHTML = '<i class="ph-bold ph-user-circle text-sm"></i>';
+                avatarEl.className = 'w-6 h-6 rounded-full bg-black/10 dark:bg-white/10 text-adw-muted flex items-center justify-center text-[10px] font-bold shrink-0';
+            }
+        }
+
+        const userDisplay = document.getElementById('edit-selected-user-display');
+        if (userDisplay) {
+            if (canFullEdit) {
+                userDisplay.setAttribute('onclick', "openUserPicker('edit')");
+                userDisplay.classList.remove('opacity-60', 'cursor-not-allowed');
+            } else {
+                userDisplay.removeAttribute('onclick');
+                userDisplay.classList.add('opacity-60', 'cursor-not-allowed');
+            }
+        }
+
+        const noticeEl = document.getElementById('edit-task-restricted-notice');
+        if (noticeEl) {
+            if (canFullEdit) {
+                noticeEl.classList.add('hidden');
+            } else {
+                noticeEl.classList.remove('hidden');
+            }
+        }
+
+        const descInput = document.getElementById('edit-task-description');
+        if (descInput) descInput.value = description || '';
+
+        openModal('edit-task-modal');
     }
 
     function filterUsersList() {

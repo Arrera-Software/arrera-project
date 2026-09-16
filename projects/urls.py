@@ -3,7 +3,7 @@ from . import views
 
 app_name = 'projects'
 
-urlpatterns = [
+urlpatterns = [\
     # Projets principaux
     path('nouveau/', views.project_create_view, name='project_create'),
     path('<slug:slug>/', views.project_detail_view, name='project_detail'),
@@ -18,6 +18,7 @@ urlpatterns = [
     
     # Tâches (dans le sous-projet)
     path('<slug:project_slug>/<slug:subproject_slug>/tasks/create/', views.task_create_view, name='task_create'),
+    path('tasks/<int:task_id>/edit/', views.task_edit_view, name='task_edit'),
     path('tasks/<int:task_id>/move/', views.task_move_view, name='task_move'),
     path('tasks/<int:task_id>/delete/', views.task_delete_view, name='task_delete'),
     

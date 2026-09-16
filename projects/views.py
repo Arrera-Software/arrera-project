@@ -295,14 +295,17 @@ def subproject_detail_view(request, project_slug, subproject_slug):
         tasks_gantt_data.append({
             'id': t.id,
             'title': t.title,
+            'description': t.description or '',
             'column_id': t.column_id,
             'column_name': t.column.name,
             'priority': t.priority,
             'priority_display': t.get_priority_display(),
-            'start_date': start_d.strftime('%Y-%m-%d'),
-            'due_date': due_d.strftime('%Y-%m-%d') if t.due_date else '',
+            'start_date': t.start_date.strftime('%Y-%m-%d') if t.start_date else '',
+            'due_date': t.due_date.strftime('%Y-%m-%d') if t.due_date else '',
             'has_due_date': bool(t.due_date),
-            'assigned_name': assigned_name,
+            'assigned_id': str(t.assigned_to_id) if t.assigned_to_id else '',
+            'assigned_name': (t.assigned_to.full_name if t.assigned_to else "Non assigné"),
+            'assigned_email': (t.assigned_to.email if t.assigned_to else ""),
             'assigned_avatar': assigned_avatar,
         })
 
@@ -413,6 +416,49 @@ def task_create_view(request, project_slug, subproject_slug):
 
 @login_required
 @require_POST
+def task_edit_view(request, task_id):
+    """Modification d'une tâche existante."""
+    task = get_object_or_404(Task, id=task_id)
+    subproject = task.column.subproject
+    project = subproject.project
+
+    if not check_project_access(request.user, project):
+        raise PermissionDenied("Accès refusé.")
+
+    is_manager_or_admin = is_project_manager_or_admin(request.user, project)
+    is_assigned = (task.assigned_to_id == request.user.id)
+
+    # Seuls l'administrateur, le chef de projet et l'utilisateur assigné peuvent modifier
+    if not (is_manager_or_admin or is_assigned):
+        raise PermissionDenied("Vous n'avez pas l'autorisation de modifier cette tâche.")
+
+    if is_manager_or_admin:
+        # Administrateur et Chef de projet : modification complète autorisée
+        form = TaskForm(request.POST, instance=task, subproject=subproject)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Tâche « {task.title} » modifiée avec succès.")
+        else:
+            messages.error(request, "Erreur lors de la modification de la tâche.")
+    else:
+        # Membre assigné : modification autorisée pour la description et les dates
+        task.description = request.POST.get('description', '').strip()
+
+        start_date_val = request.POST.get('start_date', '').strip()
+        due_date_val = request.POST.get('due_date', '').strip()
+
+        task.start_date = start_date_val if start_date_val else None
+        task.due_date = due_date_val if due_date_val else None
+
+        task.save(update_fields=['description', 'start_date', 'due_date'])
+        messages.success(request, f"Tâche « {task.title} » mise à jour avec succès.")
+
+    redirect_tab = request.POST.get('redirect_tab', 'general')
+    return redirect(f"/projets/{project.slug}/{subproject.slug}/?tab={redirect_tab}")
+
+
+@login_required
+@require_POST
 def task_move_view(request, task_id):
     """Déplacement d'une tâche d'une colonne Kanban à une autre (drag-and-drop ou sélecteur)."""
     task = get_object_or_404(Task, id=task_id)
@@ -420,6 +466,13 @@ def task_move_view(request, task_id):
 
     if not check_project_access(request.user, project):
         raise PermissionDenied("Accès refusé.")
+
+    is_manager_or_admin = is_project_manager_or_admin(request.user, project)
+    is_assigned = (task.assigned_to_id == request.user.id)
+
+    # Seuls l'administrateur, le chef de projet et l'utilisateur assigné peuvent déplacer l'état de la tâche
+    if not (is_manager_or_admin or is_assigned):
+        raise PermissionDenied("Seul le chef de projet, l'administrateur ou la personne assignée peut déplacer cette tâche.")
 
     column_id = request.POST.get('column_id')
     new_column = get_object_or_404(KanbanColumn, id=column_id, subproject=task.column.subproject)
@@ -432,13 +485,13 @@ def task_move_view(request, task_id):
 @login_required
 @require_POST
 def task_delete_view(request, task_id):
-    """Suppression d'une tâche."""
+    """Suppression d'une tâche (réservé exclusivement au chef de projet et administrateur)."""
     task = get_object_or_404(Task, id=task_id)
     subproject = task.column.subproject
     project = subproject.project
 
-    if not check_project_access(request.user, project):
-        raise PermissionDenied("Accès refusé.")
+    if not is_project_manager_or_admin(request.user, project):
+        raise PermissionDenied("Seul le chef de projet ou l'administrateur peut supprimer une tâche.")
 
     task.delete()
     messages.success(request, "Tâche supprimée.")
@@ -497,8 +550,8 @@ def credential_reveal_view(request, credential_id):
         cred.id, request.user.id, request.user.email, project.slug,
     )
     return JsonResponse({
-        'password': cred.password_plaintext
-    })
+        'password': cred.passwordplaintext
+    } if hasattr(cred, 'passwordplaintext') else {'password': cred.password_plaintext})
 
 
 @login_required
