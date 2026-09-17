@@ -198,7 +198,7 @@
                             <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 {% if is_admin or not task.has_unmet_dependencies and task.assigned_to_id == request.user.id %}
                                 <button type="button" 
-                                        onclick="openEditTaskModal({{ task.id }}, '{{ task.title|escapejs }}', '{{ task.description|escapejs }}', '{{ task.priority }}', '{{ task.assigned_to_id|default:'' }}', '{{ task.assigned_to.full_name|default:''|escapejs }}', '{{ task.assigned_to.email|default:''|escapejs }}', '{{ task.assigned_to.first_name|first|default:task.assigned_to.username|first|upper|default:'' }}', '{{ task.start_date|date:'Y-m-d'|default:'' }}', '{{ task.due_date|date:'Y-m-d'|default:'' }}', {% if is_admin %}true{% else %}false{% endif %}, [{% for dep in task.dependencies.all %}{{ dep.id }}{% if not forloop.last %},{% endif %}{% endfor %}])" 
+                                        onclick="openEditTaskModal({{ task.id }}, '{{ task.title|escapejs }}', '{{ task.description|escapejs }}', '{{ task.priority }}', '{{ task.assigned_to_id|default:'' }}', '{{ task.assigned_name|escapejs }}', '{{ task.assigned_email|escapejs }}', '{{ task.assigned_initial }}', '{{ task.start_date|date:'Y-m-d'|default:'' }}', '{{ task.due_date|date:'Y-m-d'|default:'' }}', {% if is_admin %}true{% else %}false{% endif %}, [{% for dep in task.dependencies.all %}{{ dep.id }}{% if not forloop.last %},{% endif %}{% endfor %}])" 
                                         class="text-adw-dim hover:text-adw-accent transition-colors p-0.5 cursor-pointer" 
                                         title="Modifier la tâche">
                                     <i class="ph ph-pencil-simple text-xs"></i>
@@ -229,9 +229,9 @@
                                 {% if task.assigned_to %}
                                 <div class="w-5 h-5 rounded-full border border-[var(--surface)] flex items-center justify-center text-[9px] font-bold adw-user-avatar" 
                                      title="Assigné à {{ task.assigned_to.full_name }}">
-                                    {{ task.assigned_to.first_name|first|default:task.assigned_to.username|first|upper }}
+                                    {{ task.assigned_initial }}
                                 </div>
-                                <span class="truncate max-w-[80px] font-medium">{{ task.assigned_to.first_name|default:task.assigned_to.username }}</span>
+                                <span class="truncate max-w-[80px] font-medium">{{ task.assigned_name }}</span>
                                 {% else %}
                                 <span class="italic text-adw-dim">Non assigné</span>
                                 {% endif %}
@@ -306,7 +306,7 @@
                                 <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     {% if is_admin or not task.has_unmet_dependencies %}
                                     <button type="button" 
-                                            onclick="openEditTaskModal({{ task.id }}, '{{ task.title|escapejs }}', '{{ task.description|escapejs }}', '{{ task.priority }}', '{{ task.assigned_to_id|default:'' }}', '{{ task.assigned_to.full_name|default:''|escapejs }}', '{{ task.assigned_to.email|default:''|escapejs }}', '{{ task.assigned_to.first_name|first|default:task.assigned_to.username|first|upper|default:'' }}', '{{ task.start_date|date:'Y-m-d'|default:'' }}', '{{ task.due_date|date:'Y-m-d'|default:'' }}', {% if is_admin %}true{% else %}false{% endif %}, [{% for dep in task.dependencies.all %}{{ dep.id }}{% if not forloop.last %},{% endif %}{% endfor %}])" 
+                                            onclick="openEditTaskModal({{ task.id }}, '{{ task.title|escapejs }}', '{{ task.description|escapejs }}', '{{ task.priority }}', '{{ task.assigned_to_id|default:'' }}', '{{ task.assigned_name|escapejs }}', '{{ task.assigned_email|escapejs }}', '{{ task.assigned_initial }}', '{{ task.start_date|date:'Y-m-d'|default:'' }}', '{{ task.due_date|date:'Y-m-d'|default:'' }}', {% if is_admin %}true{% else %}false{% endif %}, [{% for dep in task.dependencies.all %}{{ dep.id }}{% if not forloop.last %},{% endif %}{% endfor %}])" 
                                             class="text-adw-dim hover:text-adw-accent transition-colors p-0.5 cursor-pointer" 
                                             title="Modifier la tâche">
                                         <i class="ph ph-pencil-simple text-xs"></i>
@@ -1077,13 +1077,13 @@
 
             <!-- Liste des membres éligibles -->
             {% for u in assignable_users %}
-            <div onclick="selectUser('{{ u.id }}', '{{ u.full_name|escapejs }}', '{{ u.email|escapejs }}', '{{ u.first_name|first|default:u.username|first|upper }}')" 
+            <div onclick="selectUser('{{ u.id }}', '{{ u.full_name|escapejs }}', '{{ u.email|escapejs }}', '{{ u.avatar_initial }}')" 
                  class="user-item p-2.5 rounded-2xl border border-[var(--border)] adw-card-subtle hover:border-[var(--accent)] transition-all cursor-pointer flex items-center justify-between"
                  data-user-name="{{ u.full_name|lower }}"
                  data-user-email="{{ u.email|lower }}">
                 <div class="flex items-center gap-3 min-w-0">
                     <div class="w-8 h-8 rounded-full border border-[var(--surface)] flex items-center justify-center text-xs font-bold adw-user-avatar shrink-0">
-                        {{ u.first_name|first|default:u.username|first|upper }}
+                        {{ u.avatar_initial }}
                     </div>
                     <div class="min-w-0">
                         <div class="flex items-center gap-2">

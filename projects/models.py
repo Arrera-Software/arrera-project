@@ -183,6 +183,24 @@ class Task(models.Model):
         return self.title
 
     @property
+    def assigned_name(self):
+        if self.assigned_to:
+            return self.assigned_to.full_name
+        return "Non assigné"
+
+    @property
+    def assigned_initial(self):
+        if self.assigned_to:
+            return self.assigned_to.avatar_initial
+        return ""
+
+    @property
+    def assigned_email(self):
+        if self.assigned_to:
+            return self.assigned_to.email
+        return ""
+
+    @property
     def effective_start_date(self):
         return self.start_date or self.created_at.date()
 

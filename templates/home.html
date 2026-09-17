@@ -39,16 +39,16 @@
                 
                 <div class="flex items-center gap-2">
                     {% if project.manager %}
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/20" title="Chef de projet : {{ project.manager.full_name|default:project.manager.username }}">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/20" title="Chef de projet : {{ project.manager.full_name }}">
                         <i class="ph-bold ph-shield-star text-[10px]"></i>
-                        <span>{{ project.manager.first_name|default:project.manager.username }}</span>
+                        <span>{{ project.manager.full_name }}</span>
                     </span>
                     {% endif %}
 
                     <div class="flex -space-x-1.5 overflow-hidden">
                         {% for member in project.members.all|slice:":4" %}
                         <div class="w-6 h-6 rounded-full border border-[var(--surface)] flex items-center justify-center text-[10px] font-semibold adw-user-avatar" title="{{ member.full_name }}">
-                            {{ member.first_name|first|default:member.username|first|upper }}
+                            {{ member.avatar_initial }}
                         </div>
                         {% endfor %}
                     </div>

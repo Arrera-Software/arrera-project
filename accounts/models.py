@@ -23,3 +23,8 @@ class User(AbstractUser):
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}".strip() or self.username
+
+    @property
+    def avatar_initial(self):
+        initial = (self.first_name[:1] if self.first_name else (self.username[:1] if self.username else "?"))
+        return initial.upper()

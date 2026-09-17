@@ -32,7 +32,7 @@
                 </div>
                 <div class="text-left">
                     <span class="block text-[9px] font-bold text-adw-muted uppercase tracking-wider">Chef de projet</span>
-                    <span class="text-xs font-semibold text-adw-main">{{ project.manager.full_name|default:project.manager.username }}</span>
+                    <span class="text-xs font-semibold text-adw-main">{{ project.manager.full_name }}</span>
                 </div>
             </div>
             {% endif %}
@@ -44,7 +44,7 @@
                     {% for member in project.members.all %}
                     <div class="w-8 h-8 rounded-full border-2 border-[var(--surface)] flex items-center justify-center text-xs font-semibold adw-user-avatar" 
                          title="{{ member.full_name }} ({{ member.email }})">
-                        {{ member.first_name|first|default:member.username|first|upper }}
+                        {{ member.avatar_initial }}
                     </div>
                     {% empty %}
                     <span class="text-xs text-adw-dim italic">Aucun membre assigné</span>
@@ -362,10 +362,10 @@
                                 {% if task.assigned_to %}
                                 <div class="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold adw-user-avatar"
                                      title="Assigné à {{ task.assigned_to.full_name }}">
-                                    {{ task.assigned_to.first_name|first|default:task.assigned_to.username|first|upper }}
+                                    {{ task.assigned_initial }}
                                 </div>
                                 <span class="truncate max-w-[90px] {% if task.assigned_to == request.user %}text-adw-accent font-semibold{% endif %}">
-                                    {% if task.assigned_to == request.user %}Moi{% else %}{{ task.assigned_to.first_name|default:task.assigned_to.username }}{% endif %}
+                                    {% if task.assigned_to == request.user %}Moi{% else %}{{ task.assigned_name }}{% endif %}
                                 </span>
                                 {% else %}
                                 <span class="text-adw-dim italic text-[10px]">Non assigné</span>

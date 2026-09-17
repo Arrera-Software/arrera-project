@@ -24,7 +24,7 @@
                     onclick="toggleUserMenu()"
                     class="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border adw-user-pill transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40">
                 <div class="w-7 h-7 rounded-full border flex items-center justify-center text-xs font-semibold adw-user-avatar">
-                    {{ user.first_name|first|default:user.username|first|upper }}
+                    {{ user.avatar_initial }}
                 </div>
                 <div class="hidden sm:block text-left">
                     <p class="text-xs font-medium leading-none text-adw-main">{{ user.full_name }}</p>
