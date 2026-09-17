@@ -13,7 +13,7 @@
             <span>Retour au projet ({{ project.name }})</span>
         </a>
 
-        {% if sibling_subprojects|length > 1 %}:
+        {% if sibling_subprojects|length > 1 %}
         <div class="flex items-center gap-1.5 overflow-x-auto">
             <span class="text-[11px] text-adw-muted mr-1 hidden sm:inline">Sous-projets :</span>
             {% for sib in sibling_subprojects %}
@@ -238,7 +238,7 @@
                             </div>
 
                             {% if task.due_date %}
-                            <span class="flex items-center gap-1 font-medium {% if task.due_date < today %}text-rose-400{% endif %}" title="Échéance">
+                            <span class="flex items-center gap-1 font-medium {% if today and task.due_date < today %}text-rose-400{% endif %}" title="Échéance">
                                 <i class="ph ph-calendar text-xs"></i>
                                 {{ task.due_date|date:"d M" }}
                             </span>

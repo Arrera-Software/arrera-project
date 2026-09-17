@@ -385,6 +385,7 @@ def subproject_detail_view(request, project_slug, subproject_slug):
         'personal_tasks_count': personal_tasks_count,
         'resources_count': resources_count,
         'credentials_count': credentials_count,
+        'today': today,
         'tasks_gantt_json': json.dumps(tasks_gantt_data),
         'active_tab': request.GET.get('tab', 'general'),
     })

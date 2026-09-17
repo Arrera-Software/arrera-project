@@ -349,7 +349,7 @@
 
                         <!-- Échéance / Deadline -->
                         {% if task.due_date %}
-                        <div class="mt-2.5 flex items-center gap-1.5 text-[10px] {% if task.due_date < today %}text-rose-400 font-bold{% else %}text-adw-muted{% endif %}">
+                        <div class="mt-2.5 flex items-center gap-1.5 text-[10px] {% if today and task.due_date < today %}text-rose-400 font-bold{% else %}text-adw-muted{% endif %}">
                             <i class="ph-bold ph-calendar text-adw-accent"></i>
                             <span>Deadline : <strong class="text-adw-main">{{ task.due_date|date:"d/m/Y" }}</strong></span>
                         </div>
