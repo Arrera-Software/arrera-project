@@ -234,19 +234,93 @@ STORAGES = {
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Journalisation (accès aux secrets du coffre-fort notamment)
+# Journalisation et traçabilité détaillée des erreurs
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} [{name}:{lineno}] {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+        'simple': {
+            'format': '[{asctime}] {levelname} {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+    },
     'handlers': {
-        'console': {'class': 'logging.StreamHandler'},
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': str(LOGS_DIR / 'django.log'),
+            'maxBytes': 10 * 1024 * 1024,  # 10 Mo
+            'backupCount': 5,
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+        'error_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': str(LOGS_DIR / 'django_errors.log'),
+            'maxBytes': 10 * 1024 * 1024,  # 10 Mo
+            'backupCount': 5,
+            'level': 'ERROR',
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
     },
     'loggers': {
-        'projects.credentials': {
-            'handlers': ['console'],
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'django.server': {
+            'handlers': ['console', 'file'],
             'level': 'INFO',
             'propagate': False,
         },
+        'django.template': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.db.backends': {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'projects': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'accounts': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'projects.credentials': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file'],
+        'level': 'INFO',
     },
 }
 
