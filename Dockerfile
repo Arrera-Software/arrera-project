@@ -21,9 +21,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copie du code source
 COPY . /app/
 
-# Création d'un utilisateur non privilégié et attribution des droits
-RUN adduser --disabled-password --gecos '' appuser \
+# Création des dossiers requis et attribution des droits à appuser
+RUN mkdir -p /app/logs /app/media /app/staticfiles \
+    && adduser --disabled-password --gecos '' appuser \
     && chown -R appuser:appuser /app
+
 USER appuser
 
 EXPOSE 8000
